@@ -1,6 +1,6 @@
 # 🛡️ Liquidation Shield Hook
 
-**A Uniswap v4 hook that provides cross-chain, automated liquidation protection for DeFi lending positions — powered by Reactive Network.*
+**A Uniswap v4 hook that provides cross-chain, automated liquidation protection for DeFi lending positions — powered by Reactive Network.**
 
 ## The Problem
 

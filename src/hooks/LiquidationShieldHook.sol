@@ -11,7 +11,7 @@ import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-core/src/types/BeforeS
 import {SwapParams} from "v4-core/src/types/PoolOperation.sol";
 import {Currency} from "v4-core/src/types/Currency.sol";
 import {IERC20} from "forge-std/interfaces/IERC20.sol";
-import {ILendingPool} from "./interfaces/ILendingPool.sol";
+import {ILendingPool} from "../interfaces/ILendingPool.sol";
 
 /**
  * @title LiquidationShieldHook
@@ -290,7 +290,7 @@ contract LiquidationShieldHook is BaseHook {
         ShieldPosition storage pos = positions[user];
         if (!pos.isActive) revert PositionNotRegistered();
         if (currentHealthFactor >= pos.healthThreshold) revert ProtectionNotNeeded();
-        if (block.timestamp < pos.lastTriggered + COOLDOWN_PERIOD) revert CooldownActive();
+        if (pos.lastTriggered != 0 && block.timestamp < pos.lastTriggered + COOLDOWN_PERIOD) revert CooldownActive();
 
         // Cap repay amount to user's deposit balance
         uint256 actualRepay = repayAmount > pos.depositBalance

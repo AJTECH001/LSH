@@ -9,32 +9,7 @@ import {HookMiner} from "v4-hooks-public/src/utils/HookMiner.sol";
 import {LiquidationShieldHook} from "../src/hooks/LiquidationShieldHook.sol";
 import {CallbackReceiver} from "../src/reactive/CallbackReceiver.sol";
 
-/**
- * @title Deploy
- * @notice Deploys LiquidationShieldHook + CallbackReceiver on Sepolia (or any EVM chain).
- *
- * @dev Pre-requisites:
- *   1. Set environment variables (see below)
- *   2. Run:
- *        forge script script/Deploy.s.sol \
- *          --rpc-url $SEPOLIA_RPC_URL \
- *          --broadcast \
- *          --verify \
- *          -vvvv
- *
- * Required env vars:
- *   POOL_MANAGER      — Uniswap v4 PoolManager address on target chain
- *   MIN_DEPOSIT       — Minimum deposit in wei (e.g. 100000000000000000000 = 100e18)
- *   REACTIVE_RELAYER  — (optional) Reactive Network relayer to whitelist immediately
- *
- * Uniswap v4 PoolManager addresses:
- *   Sepolia:  0x8C4BcBE6b9eF47855f97E675296FA3F6fafa5F1A
- *   Mainnet:  0x000000000004444c5dc75cB358380D2e3dE08A90
- *
- * After running this script, copy the printed addresses and use them to
- * deploy HealthFactorMonitor on the Reactive Network (Kopli testnet).
- * See script/DeployReactive.s.sol for that step.
- */
+
 contract Deploy is Script {
     // CREATE2 deployer proxy — used by HookMiner in forge script context
     address constant CREATE2_PROXY = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
@@ -108,7 +83,7 @@ contract Deploy is Script {
             callbackReceiver.addAuthorizedCaller(reactiveRelayer);
             console2.log("Reactive relayer whitelisted:", reactiveRelayer);
         } else {
-            console2.log("REACTIVE_RELAYER not set - add it later via addAuthorizedCaller()");
+            console2.log("REACTIVE_RELAYER not set — add it later via addAuthorizedCaller()");
         }
 
         vm.stopBroadcast();

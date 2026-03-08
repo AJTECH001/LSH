@@ -1,0 +1,14 @@
+{
+  "lib/uniswap-hooks": {
+    "rev": "2c39623ce5a5103bd314f1380df0443df2523149"
+  },
+  "lib/v4-core": {
+    "rev": "e50237c43811bd9b526eff40f26772152a42daba"
+  },
+  "lib/v4-hooks-public": {
+    "rev": "bae291c271be69882e084baa5993a033cb09362b"
+  },
+  "lib/v4-periphery": {
+    "rev": "5da22e609fd78c01fb7ddf2a6abb1f2ec7dc2b87"
+  }
+}

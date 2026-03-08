@@ -8,6 +8,7 @@ import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-core/src/types/BeforeSwapDelta.sol";
+import {LPFeeLibrary} from "v4-core/src/libraries/LPFeeLibrary.sol";
 import {SwapParams} from "v4-core/src/types/PoolOperation.sol";
 import {Currency} from "v4-core/src/types/Currency.sol";
 import {IERC20} from "forge-std/interfaces/IERC20.sol";
@@ -56,13 +57,20 @@ contract LiquidationShieldHook is BaseHook {
         uint256 depositAmount
     );
 
-    /// @notice Emitted when protection is triggered (Reactive → Hook)
+    /// @notice Emitted when protection is triggered via executeProtection (Reactive → Hook)
     event ShieldTriggered(
         address indexed user,
         uint256 indexed originChainId,
         uint256 healthFactorBefore,
         uint256 repayAmount,
         uint256 newHealthFactor
+    );
+
+    /// @notice Emitted when a shield-triggered swap completes through the pool
+    event ProtectionSwapLogged(
+        address indexed user,
+        uint256 indexed originChainId,
+        uint256 swapAmount
     );
 
     /// @notice Emitted when a user withdraws from the shield
@@ -349,15 +357,21 @@ contract LiquidationShieldHook is BaseHook {
 
     function _beforeSwap(
         address,
-        PoolKey calldata,
+        PoolKey calldata key,
         SwapParams calldata,
         bytes calldata hookData
     ) internal override returns (bytes4, BeforeSwapDelta, uint24) {
-        // If this is a shield-triggered swap, apply fee discount
+        // If this is a shield-triggered swap, apply a 50% fee discount.
+        // Fee overrides only take effect on pools initialised with DYNAMIC_FEE_FLAG.
         if (hookData.length > 0) {
             address protectedUser = abi.decode(hookData, (address));
             if (positions[protectedUser].isActive) {
-                return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
+                uint24 discountedFee = key.fee / 2; // 50% discount
+                return (
+                    BaseHook.beforeSwap.selector,
+                    BeforeSwapDeltaLibrary.ZERO_DELTA,
+                    LPFeeLibrary.OVERRIDE_FEE_FLAG | discountedFee
+                );
             }
         }
         return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
@@ -370,19 +384,16 @@ contract LiquidationShieldHook is BaseHook {
         BalanceDelta delta,
         bytes calldata hookData
     ) internal override returns (bytes4, int128) {
-        // After a shield-triggered swap completes, log the protection event
+        // Log shield-triggered swaps with a dedicated event (avoids duplicate ShieldTriggered
+        // which is already emitted by executeProtection for the repay path).
         if (hookData.length > 0) {
             address protectedUser = abi.decode(hookData, (address));
             ShieldPosition storage pos = positions[protectedUser];
 
             if (pos.isActive) {
-                emit ShieldTriggered(
-                    protectedUser,
-                    pos.originChainId,
-                    0,
-                    uint256(int256(delta.amount1() > 0 ? delta.amount1() : -delta.amount1())),
-                    0
-                );
+                int128 amt1 = delta.amount1();
+                uint256 swapAmt = uint256(int256(amt1 > 0 ? amt1 : -amt1));
+                emit ProtectionSwapLogged(protectedUser, pos.originChainId, swapAmt);
             }
         }
         return (BaseHook.afterSwap.selector, 0);

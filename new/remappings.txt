@@ -1,0 +1,15 @@
+forge-std/=/Users/amityclev/Documents/dev/uniswap/UI9/LSH/lib/forge-std/src/
+
+@uniswap/v4-core/=/Users/amityclev/Documents/dev/uniswap/UI9/LSH/lib/uniswap-hooks/lib/v4-core/
+@uniswap/v4-periphery/=/Users/amityclev/Documents/dev/uniswap/UI9/LSH/lib/uniswap-hooks/lib/v4-periphery/
+v4-core/=/Users/amityclev/Documents/dev/uniswap/UI9/LSH/lib/uniswap-hooks/lib/v4-core/
+v4-periphery/=/Users/amityclev/Documents/dev/uniswap/UI9/LSH/lib/uniswap-hooks/lib/v4-periphery/
+
+@openzeppelin/uniswap-hooks/=/Users/amityclev/Documents/dev/uniswap/UI9/LSH/lib/uniswap-hooks/
+@openzeppelin/contracts/=/Users/amityclev/Documents/dev/uniswap/UI9/LSH/lib/uniswap-hooks/lib/v4-core/lib/openzeppelin-contracts/contracts/
+
+hookmate/=lib/hookmate/src/
+uniswap-hooks/=/Users/amityclev/Documents/dev/uniswap/UI9/LSH/lib/uniswap-hooks/
+permit2/=/Users/amityclev/Documents/dev/uniswap/UI9/LSH/lib/uniswap-hooks/lib/v4-periphery/lib/permit2/
+solmate/=/Users/amityclev/Documents/dev/uniswap/UI9/LSH/lib/uniswap-hooks/lib/v4-core/lib/solmate/
+@reactive-lib/=/Users/amityclev/Documents/dev/uniswap/UI9/kineticYield/lib/reactive-lib/src/

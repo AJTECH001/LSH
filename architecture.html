@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LiquidationShieldHook — System Architecture & User Flow</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0d1117;
+    color: #e6edf3;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  header {
+    background: linear-gradient(135deg, #161b22 0%, #1c2333 100%);
+    border-bottom: 1px solid #30363d;
+    padding: 28px 40px;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+  }
+  .logo {
+    width: 48px; height: 48px;
+    background: linear-gradient(135deg, #ff6b35, #f7c59f);
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px;
+  }
+  header h1 { font-size: 22px; font-weight: 700; color: #e6edf3; }
+  header p  { font-size: 13px; color: #8b949e; margin-top: 3px; }
+
+  /* ── Tab nav ── */
+  nav {
+    display: flex;
+    gap: 4px;
+    padding: 16px 40px 0;
+    background: #0d1117;
+    border-bottom: 1px solid #21262d;
+  }
+  nav button {
+    background: none; border: none; cursor: pointer;
+    color: #8b949e; font-size: 14px; font-weight: 500;
+    padding: 10px 20px;
+    border-bottom: 2px solid transparent;
+    transition: all .2s;
+  }
+  nav button.active {
+    color: #58a6ff;
+    border-bottom-color: #58a6ff;
+  }
+  nav button:hover:not(.active) { color: #c9d1d9; }
+
+  /* ── Panels ── */
+  .panel { display: none; padding: 40px; }
+  .panel.active { display: block; }
+
+  /* ── Section headings ── */
+  .section-title {
+    font-size: 18px; font-weight: 700; color: #e6edf3;
+    margin-bottom: 6px;
+  }
+  .section-sub {
+    font-size: 13px; color: #8b949e; margin-bottom: 28px;
+  }
+
+  /* ═══════════════════════════════════════════════
+     TAB 1 — ARCHITECTURE
+  ═══════════════════════════════════════════════ */
+
+  .arch-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: auto auto auto;
+    gap: 0;
+    position: relative;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  /* chain lanes */
+  .lane {
+    border: 1px solid #21262d;
+    border-radius: 14px;
+    padding: 20px;
+    position: relative;
+  }
+  .lane-label {
+    font-size: 10px; font-weight: 700; letter-spacing: 1.5px;
+    text-transform: uppercase; margin-bottom: 16px;
+    padding: 4px 10px; border-radius: 20px;
+    display: inline-block;
+  }
+
+  /* colour themes */
+  .lane-hook   { background: #0d1f2d; border-color: #1f6feb; grid-column: 1; }
+  .lane-react  { background: #1a1a2e; border-color: #7c3aed; grid-column: 2; }
+  .lane-origin { background: #0d2218; border-color: #238636; grid-column: 3; }
+
+  .label-hook   { background: #1f6feb22; color: #58a6ff; }
+  .label-react  { background: #7c3aed22; color: #a78bfa; }
+  .label-origin { background: #23863622; color: #56d364; }
+
+  /* contract cards */
+  .contract {
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+    border: 1px solid;
+    position: relative;
+  }
+  .contract-name {
+    font-size: 13px; font-weight: 700; margin-bottom: 4px;
+  }
+  .contract-desc {
+    font-size: 11px; color: #8b949e; line-height: 1.5;
+  }
+  .contract-tag {
+    font-size: 9px; font-weight: 600; letter-spacing: .8px;
+    padding: 2px 7px; border-radius: 10px;
+    position: absolute; top: 10px; right: 10px;
+    text-transform: uppercase;
+  }
+
+  /* hook chain cards */
+  .c-hook   { background: #132030; border-color: #1f6feb55; }
+  .c-hook .contract-name { color: #79c0ff; }
+  .c-hook .contract-tag  { background: #1f6feb22; color: #58a6ff; }
+
+  /* reactive chain cards */
+  .c-react  { background: #1e1a30; border-color: #7c3aed55; }
+  .c-react .contract-name { color: #c4b5fd; }
+  .c-react .contract-tag  { background: #7c3aed22; color: #a78bfa; }
+
+  /* origin chain cards */
+  .c-origin { background: #132515; border-color: #23863655; }
+  .c-origin .contract-name { color: #56d364; }
+  .c-origin .contract-tag  { background: #23863622; color: #56d364; }
+
+  /* external actor (user) */
+  .actor {
+    background: #1c2333; border: 1px solid #30363d; border-radius: 10px;
+    padding: 14px 16px; margin-bottom: 12px;
+  }
+  .actor-name { font-size: 13px; font-weight: 700; color: #f0c040; }
+  .actor-desc { font-size: 11px; color: #8b949e; margin-top: 3px; line-height: 1.5; }
+
+  /* full-width user row */
+  .user-row {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 14px;
+    justify-content: center;
+    margin-bottom: 20px;
+  }
+  .user-card {
+    background: #1c2333; border: 1px dashed #f0c04055;
+    border-radius: 10px; padding: 14px 24px; text-align: center;
+    flex: 0 0 auto;
+  }
+  .user-card .icon { font-size: 28px; }
+  .user-card .name { font-size: 12px; font-weight: 700; color: #f0c040; margin-top: 4px; }
+  .user-card .desc { font-size: 10px; color: #8b949e; margin-top: 2px; }
+
+  /* arrows overlay canvas */
+  #arch-canvas {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+  }
+
+  /* legend */
+  .legend {
+    display: flex; gap: 20px; flex-wrap: wrap;
+    margin-top: 24px; padding: 14px 18px;
+    background: #161b22; border: 1px solid #21262d; border-radius: 8px;
+    max-width: 1100px; margin-left: auto; margin-right: auto; margin-top: 24px;
+  }
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #8b949e; }
+  .legend-line {
+    width: 32px; height: 2px; border-radius: 1px;
+  }
+  .legend-arrow { width: 0; height: 0; }
+
+  /* permissions table */
+  .perms-grid {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    margin-top: 16px;
+  }
+  .perm-badge {
+    padding: 4px 12px; border-radius: 20px;
+    font-size: 11px; font-weight: 600;
+    border: 1px solid;
+  }
+  .perm-on  { background: #0d2d0d; border-color: #238636; color: #56d364; }
+  .perm-off { background: #1c2333; border-color: #30363d; color: #484f58; text-decoration: line-through; }
+
+  /* ═══════════════════════════════════════════════
+     TAB 2 — USER FLOW (SEQUENCE DIAGRAM)
+  ═══════════════════════════════════════════════ */
+
+  .flow-wrap {
+    max-width: 980px;
+    margin: 0 auto;
+    position: relative;
+  }
+
+  .flow-actors {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: #0d1117;
+    padding-bottom: 0;
+  }
+
+  .flow-actor {
+    flex: 1;
+    text-align: center;
+    padding: 10px 6px 0;
+    position: relative;
+  }
+  .flow-actor-box {
+    display: inline-block;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 2px solid;
+    font-size: 11px;
+    font-weight: 700;
+    min-width: 90px;
+    background: #0d1117;
+  }
+  .fa-user    { border-color: #f0c040; color: #f0c040; }
+  .fa-hook    { border-color: #58a6ff; color: #58a6ff; }
+  .fa-uniswap { border-color: #ff007a; color: #ff007a; }
+  .fa-lending { border-color: #56d364; color: #56d364; }
+  .fa-react   { border-color: #a78bfa; color: #a78bfa; }
+  .fa-monitor { border-color: #7c3aed; color: #7c3aed; }
+  .fa-cb      { border-color: #38bdf8; color: #38bdf8; }
+
+  /* lifelines */
+  .lifelines {
+    display: flex;
+    justify-content: space-between;
+    height: 16px;
+  }
+  .lifeline {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+  }
+  .lifeline-line {
+    width: 2px;
+    height: 16px;
+    background: repeating-linear-gradient(
+      to bottom, #30363d 0, #30363d 6px, transparent 6px, transparent 12px
+    );
+  }
+
+  /* sequence groups */
+  .seq-group {
+    margin-top: 6px;
+    border: 1px solid #21262d;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .seq-group-title {
+    padding: 8px 16px;
+    font-size: 11px; font-weight: 700; letter-spacing: 1px;
+    text-transform: uppercase;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .sg-register { background: #132030; color: #79c0ff; border-bottom: 1px solid #1f6feb33; }
+  .sg-monitor  { background: #1e1a30; color: #c4b5fd; border-bottom: 1px solid #7c3aed33; }
+  .sg-protect  { background: #2d1515; color: #ffa198; border-bottom: 1px solid #f8514933; }
+  .sg-settle   { background: #132515; color: #56d364; border-bottom: 1px solid #23863633; }
+
+  /* sequence messages */
+  .seq-body { position: relative; }
+
+  .seq-msg {
+    display: flex;
+    align-items: stretch;
+    min-height: 44px;
+    position: relative;
+  }
+  .seq-msg:nth-child(odd) { background: #0f1419; }
+
+  .seq-col {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    min-height: 44px;
+  }
+
+  /* vertical lifeline within sequence */
+  .seq-col::before {
+    content: '';
+    position: absolute;
+    top: 0; bottom: 0;
+    left: 50%;
+    width: 2px;
+    background: repeating-linear-gradient(
+      to bottom, #21262d 0, #21262d 6px, transparent 6px, transparent 12px
+    );
+    transform: translateX(-50%);
+    z-index: 0;
+  }
+
+  .seq-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    pointer-events: none;
+  }
+
+  .arrow-line {
+    height: 2px;
+    border-radius: 1px;
+  }
+  .arrow-head {
+    width: 0; height: 0;
+    flex-shrink: 0;
+  }
+  /* right-pointing */
+  .arrow-head-r {
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    border-left: 8px solid;
+  }
+  /* left-pointing */
+  .arrow-head-l {
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    border-right: 8px solid;
+  }
+  /* self-return */
+  .self-call {
+    width: 28px; height: 20px;
+    border: 2px solid;
+    border-left: none;
+    border-radius: 0 6px 6px 0;
+    position: absolute; right: 30%;
+    top: 50%; transform: translateY(-50%);
+    z-index: 2;
+  }
+
+  .seq-label {
+    position: absolute;
+    top: 50%; transform: translateY(-100%);
+    font-size: 10px; font-weight: 600;
+    white-space: nowrap;
+    z-index: 3;
+    background: #0d1117;
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+
+  .seq-note {
+    background: #1c2233; border-left: 3px solid #30363d;
+    padding: 8px 14px; font-size: 11px; color: #8b949e;
+    margin: 0;
+  }
+  .seq-note code {
+    background: #21262d; padding: 1px 5px; border-radius: 3px;
+    font-family: 'Courier New', monospace; font-size: 10px; color: #79c0ff;
+  }
+
+  /* ═══════════════════════════════════════════════
+     TAB 3 — CONTRACT REFERENCE
+  ═══════════════════════════════════════════════ */
+
+  .ref-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    max-width: 1000px;
+  }
+
+  .ref-card {
+    background: #161b22; border: 1px solid #21262d; border-radius: 10px;
+    padding: 18px;
+  }
+  .ref-card h3 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+  .ref-card .ref-path { font-size: 11px; color: #484f58; font-family: monospace; margin-bottom: 12px; }
+
+  .ref-fn {
+    padding: 8px 0;
+    border-bottom: 1px solid #21262d;
+  }
+  .ref-fn:last-child { border-bottom: none; }
+  .ref-fn-name { font-size: 12px; font-weight: 600; font-family: monospace; }
+  .ref-fn-desc { font-size: 11px; color: #8b949e; margin-top: 2px; }
+
+  .badge { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; margin-left: 6px; }
+  .badge-ext { background: #1f6feb22; color: #58a6ff; }
+  .badge-int { background: #23863622; color: #56d364; }
+  .badge-hook{ background: #f857a622; color: #f857a6; }
+  .badge-admin{ background: #f0c04022; color: #f0c040; }
+
+  /* ── data flow SVG diagram ── */
+  .svg-wrap {
+    max-width: 1100px; margin: 0 auto;
+    background: #161b22; border: 1px solid #21262d; border-radius: 12px;
+    padding: 30px;
+    overflow: hidden;
+  }
+
+  /* ── spacing improvements ── */
+  .section-title { margin-bottom: 8px; }
+  .section-sub   { margin-bottom: 36px; }
+
+  .ref-grid { gap: 22px; }
+
+  .ref-card { padding: 22px 24px; }
+  .ref-card h3 { margin-bottom: 6px; font-size: 15px; }
+  .ref-card .ref-path { margin-bottom: 18px; }
+
+  .ref-fn { padding: 11px 0; }
+  .ref-fn-name { margin-bottom: 5px; }
+  .ref-fn-desc { font-size: 11px; color: #8b949e; line-height: 1.65; }
+
+  .legend { margin-top: 28px; gap: 24px; }
+  .legend-item { gap: 10px; font-size: 12px; }
+
+  /* responsive */
+  @media (max-width: 900px) {
+    .arch-grid { grid-template-columns: 1fr; }
+    .lane-hook, .lane-react, .lane-origin { grid-column: 1; }
+    .ref-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── HEADER ── -->
+<header>
+  <div class="logo">🛡️</div>
+  <div>
+    <h1>LiquidationShieldHook</h1>
+    <p>System Architecture &amp; User Flow — Uniswap v4 × Reactive Network Cross-Chain Protection</p>
+  </div>
+</header>
+
+<!-- ── TAB NAV ── -->
+<nav>
+  <button class="active" onclick="showTab('arch', this)">System Architecture</button>
+  <button onclick="showTab('flow', this)">User Flow</button>
+  <button onclick="showTab('ref', this)">Contract Reference</button>
+</nav>
+
+<!-- ════════════════════════════════════════════════════════
+     PANEL 1 — SYSTEM ARCHITECTURE
+════════════════════════════════════════════════════════ -->
+<div id="tab-arch" class="panel active">
+
+  <div class="section-title">System Architecture</div>
+  <div class="section-sub">Three-chain topology: Hook Chain (EVM) · Reactive Network · Origin Chain (lending protocol)</div>
+
+  <!-- high-level SVG overview -->
+  <div class="svg-wrap" style="margin-bottom: 30px;">
+    <svg viewBox="0 0 1040 520" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block;">
+      <defs>
+        <marker id="ah-blue" markerWidth="8" markerHeight="8" refX="8" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 Z" fill="#58a6ff"/>
+        </marker>
+        <marker id="ah-purple" markerWidth="8" markerHeight="8" refX="8" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 Z" fill="#a78bfa"/>
+        </marker>
+        <marker id="ah-green" markerWidth="8" markerHeight="8" refX="8" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 Z" fill="#56d364"/>
+        </marker>
+        <marker id="ah-yellow" markerWidth="8" markerHeight="8" refX="8" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 Z" fill="#f0c040"/>
+        </marker>
+        <marker id="ah-red" markerWidth="8" markerHeight="8" refX="8" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 Z" fill="#ff6b6b"/>
+        </marker>
+        <marker id="ah-pink" markerWidth="8" markerHeight="8" refX="8" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 Z" fill="#ff007a"/>
+        </marker>
+        <!-- reverse arrows -->
+        <marker id="ah-blue-l" markerWidth="8" markerHeight="8" refX="0" refY="3" orient="auto">
+          <path d="M8,0 L8,6 L0,3 Z" fill="#58a6ff"/>
+        </marker>
+        <marker id="ah-green-l" markerWidth="8" markerHeight="8" refX="0" refY="3" orient="auto">
+          <path d="M8,0 L8,6 L0,3 Z" fill="#56d364"/>
+        </marker>
+        <marker id="ah-purple-l" markerWidth="8" markerHeight="8" refX="0" refY="3" orient="auto">
+          <path d="M8,0 L8,6 L0,3 Z" fill="#a78bfa"/>
+        </marker>
+      </defs>
+
+      <!-- Chain lanes -->
+      <!-- Hook Chain -->
+      <rect x="8" y="8" width="320" height="504" rx="12" fill="#0d1f2d" stroke="#1f6feb" stroke-width="1.5"/>
+      <text x="28" y="34" font-size="9" fill="#58a6ff" font-weight="700" letter-spacing="1.5" font-family="system-ui">HOOK CHAIN (EVM L2)</text>
+
+      <!-- Reactive Network -->
+      <rect x="360" y="8" width="320" height="504" rx="12" fill="#1a1a2e" stroke="#7c3aed" stroke-width="1.5"/>
+      <text x="380" y="34" font-size="9" fill="#a78bfa" font-weight="700" letter-spacing="1.5" font-family="system-ui">REACTIVE NETWORK (KOPLI)</text>
+
+      <!-- Origin Chain -->
+      <rect x="712" y="8" width="320" height="504" rx="12" fill="#0d2218" stroke="#238636" stroke-width="1.5"/>
+      <text x="732" y="34" font-size="9" fill="#56d364" font-weight="700" letter-spacing="1.5" font-family="system-ui">ORIGIN CHAIN (AAVE L1/L2)</text>
+
+      <!-- ── HOOK CHAIN BOXES ── -->
+      <!-- User -->
+      <rect x="30" y="50" width="140" height="64" rx="8" fill="#1c2333" stroke="#f0c040" stroke-width="1.5" stroke-dasharray="5,3"/>
+      <text x="52" y="72" font-size="18" font-family="system-ui">👤</text>
+      <text x="78" y="73" font-size="11" fill="#f0c040" font-weight="700" font-family="system-ui">User / DeFi Trader</text>
+      <text x="78" y="88" font-size="9" fill="#8b949e" font-family="system-ui">Registers position,</text>
+      <text x="78" y="100" font-size="9" fill="#8b949e" font-family="system-ui">deposits protection funds</text>
+
+      <!-- LiquidationShieldHook -->
+      <rect x="30" y="140" width="276" height="100" rx="8" fill="#132030" stroke="#1f6feb" stroke-width="1.5"/>
+      <text x="46" y="163" font-size="12" fill="#79c0ff" font-weight="700" font-family="system-ui">LiquidationShieldHook</text>
+      <rect x="200" y="150" width="96" height="16" rx="8" fill="#1f6feb22"/>
+      <text x="214" y="162" font-size="9" fill="#58a6ff" font-weight="600" font-family="system-ui">Uniswap v4 Hook</text>
+      <text x="46" y="182" font-size="9.5" fill="#8b949e" font-family="system-ui">• afterInitialize — register pool</text>
+      <text x="46" y="198" font-size="9.5" fill="#8b949e" font-family="system-ui">• beforeSwap — 50% fee discount</text>
+      <text x="46" y="214" font-size="9.5" fill="#8b949e" font-family="system-ui">• afterSwap — emit ProtectionSwapLogged</text>
+      <text x="46" y="230" font-size="9.5" fill="#8b949e" font-family="system-ui">• executeProtection() — repay debt</text>
+
+      <!-- Uniswap v4 Pool Manager -->
+      <rect x="30" y="268" width="276" height="64" rx="8" fill="#1a1020" stroke="#ff007a" stroke-width="1.5"/>
+      <text x="46" y="291" font-size="12" fill="#ff7eb6" font-weight="700" font-family="system-ui">Uniswap v4 PoolManager</text>
+      <text x="46" y="309" font-size="9.5" fill="#8b949e" font-family="system-ui">• Manages liquidity pools</text>
+      <text x="46" y="323" font-size="9.5" fill="#8b949e" font-family="system-ui">• Executes flash-swaps for protection</text>
+
+      <!-- CallbackReceiver -->
+      <rect x="30" y="358" width="276" height="64" rx="8" fill="#0d2030" stroke="#38bdf8" stroke-width="1.5"/>
+      <text x="46" y="381" font-size="12" fill="#7dd3fc" font-weight="700" font-family="system-ui">CallbackReceiver</text>
+      <text x="46" y="399" font-size="9.5" fill="#8b949e" font-family="system-ui">• Receives Reactive callbacks</text>
+      <text x="46" y="413" font-size="9.5" fill="#8b949e" font-family="system-ui">• Forwards to executeProtection()</text>
+
+      <!-- ── REACTIVE NETWORK BOXES ── -->
+      <!-- HealthFactorMonitor -->
+      <rect x="382" y="140" width="276" height="124" rx="8" fill="#1e1a30" stroke="#7c3aed" stroke-width="1.5"/>
+      <text x="398" y="163" font-size="12" fill="#c4b5fd" font-weight="700" font-family="system-ui">HealthFactorMonitor</text>
+      <rect x="570" y="150" width="76" height="16" rx="8" fill="#7c3aed22"/>
+      <text x="580" y="162" font-size="9" fill="#a78bfa" font-weight="600" font-family="system-ui">IReactive</text>
+      <text x="398" y="183" font-size="9.5" fill="#8b949e" font-family="system-ui">• Subscribes to lending events</text>
+      <text x="398" y="199" font-size="9.5" fill="#8b949e" font-family="system-ui">• react() called on each event</text>
+      <text x="398" y="215" font-size="9.5" fill="#8b949e" font-family="system-ui">• Estimates health factor</text>
+      <text x="398" y="231" font-size="9.5" fill="#8b949e" font-family="system-ui">• Emits Callback when HF &lt; threshold</text>
+      <text x="398" y="247" font-size="9.5" fill="#8b949e" font-family="system-ui">• Manages subscription service</text>
+
+      <!-- Reactive Subscription Service -->
+      <rect x="382" y="290" width="276" height="64" rx="8" fill="#2a1f40" stroke="#7c3aed55" stroke-width="1" stroke-dasharray="4,3"/>
+      <text x="398" y="313" font-size="12" fill="#9d73e8" font-weight="700" font-family="system-ui">Subscription Service</text>
+      <text x="398" y="331" font-size="9.5" fill="#8b949e" font-family="system-ui">• System contract on Reactive Network</text>
+      <text x="398" y="347" font-size="9.5" fill="#8b949e" font-family="system-ui">• Routes events to reactive contracts</text>
+
+      <!-- Reactive Relayer -->
+      <rect x="382" y="380" width="276" height="50" rx="8" fill="#1e1a30" stroke="#7c3aed33" stroke-width="1" stroke-dasharray="4,3"/>
+      <text x="398" y="403" font-size="12" fill="#9d73e8" font-weight="700" font-family="system-ui">Reactive Relayer</text>
+      <text x="398" y="420" font-size="9.5" fill="#8b949e" font-family="system-ui">• Delivers Callback events cross-chain</text>
+
+      <!-- ── ORIGIN CHAIN BOXES ── -->
+      <!-- Aave / Lending Protocol -->
+      <rect x="734" y="140" width="276" height="100" rx="8" fill="#132515" stroke="#238636" stroke-width="1.5"/>
+      <text x="750" y="163" font-size="12" fill="#56d364" font-weight="700" font-family="system-ui">Aave / Lending Protocol</text>
+      <text x="750" y="183" font-size="9.5" fill="#8b949e" font-family="system-ui">• Holds user's collateral &amp; debt</text>
+      <text x="750" y="199" font-size="9.5" fill="#8b949e" font-family="system-ui">• Emits Borrow / Repay events</text>
+      <text x="750" y="215" font-size="9.5" fill="#8b949e" font-family="system-ui">• Emits LiquidationCall events</text>
+      <text x="750" y="231" font-size="9.5" fill="#8b949e" font-family="system-ui">• getUserAccountData() → health factor</text>
+
+      <!-- Price Oracles -->
+      <rect x="734" y="268" width="276" height="50" rx="8" fill="#0d1a12" stroke="#23863633" stroke-width="1" stroke-dasharray="4,3"/>
+      <text x="750" y="291" font-size="12" fill="#3fb56a" font-weight="700" font-family="system-ui">Chainlink / Price Oracles</text>
+      <text x="750" y="308" font-size="9.5" fill="#8b949e" font-family="system-ui">• Token price feeds for HF calculation</text>
+
+      <!-- ── ARROWS ── -->
+
+      <!-- User → Hook: activateShield -->
+      <line x1="170" y1="114" x2="170" y2="138" stroke="#f0c040" stroke-width="1.8" marker-end="url(#ah-yellow)"/>
+      <text x="175" y="130" font-size="9" fill="#f0c040" font-family="system-ui">activateShield()</text>
+
+      <!-- Hook → PoolManager -->
+      <line x1="168" y1="242" x2="168" y2="266" stroke="#ff007a" stroke-width="1.8" marker-end="url(#ah-pink)"/>
+      <text x="88" y="259" font-size="9" fill="#ff007a" font-family="system-ui">hook callbacks</text>
+
+      <!-- Hook → CallbackReceiver (auth) -->
+      <line x1="168" y1="332" x2="168" y2="356" stroke="#38bdf8" stroke-width="1.8" stroke-dasharray="4,3" marker-end="url(#ah-blue)"/>
+      <text x="175" y="350" font-size="9" fill="#38bdf8" font-family="system-ui">authorized</text>
+
+      <!-- Hook → Reactive: HealthCheckRequested event -->
+      <path d="M308,190 Q340,190 380,190" stroke="#58a6ff" stroke-width="1.8" fill="none" marker-end="url(#ah-purple)"/>
+      <text x="316" y="184" font-size="9" fill="#58a6ff" font-family="system-ui">HealthCheckRequested</text>
+
+      <!-- HealthFactorMonitor → Subscription Service -->
+      <line x1="520" y1="266" x2="520" y2="288" stroke="#7c3aed" stroke-width="1.8" marker-end="url(#ah-purple)"/>
+      <text x="526" y="282" font-size="9" fill="#a78bfa" font-family="system-ui">subscribe()</text>
+
+      <!-- Reactive → Aave: subscribe -->
+      <path d="M660,235 Q690,235 732,235" stroke="#a78bfa" stroke-width="1.8" fill="none" marker-end="url(#ah-green)"/>
+      <text x="668" y="229" font-size="9" fill="#a78bfa" font-family="system-ui">subscribe to events</text>
+
+      <!-- Aave → Reactive: Borrow/Repay events -->
+      <path d="M732,215 Q700,270 660,290" stroke="#56d364" stroke-width="1.8" fill="none" marker-end="url(#ah-purple-l)" stroke-dasharray="5,3"/>
+      <text x="688" y="257" font-size="9" fill="#56d364" font-family="system-ui">Borrow/Repay</text>
+      <text x="688" y="268" font-size="9" fill="#56d364" font-family="system-ui">events →</text>
+
+      <!-- HealthFactorMonitor → Relayer: Callback -->
+      <line x1="520" y1="356" x2="520" y2="378" stroke="#a78bfa" stroke-width="1.8" marker-end="url(#ah-purple)"/>
+      <text x="526" y="372" font-size="9" fill="#a78bfa" font-family="system-ui">emit Callback</text>
+
+      <!-- Relayer → CallbackReceiver -->
+      <path d="M380,405 Q340,405 308,405" stroke="#38bdf8" stroke-width="1.8" fill="none" marker-end="url(#ah-blue-l)"/>
+      <text x="328" y="399" font-size="9" fill="#38bdf8" font-family="system-ui">receiveCallback()</text>
+
+      <!-- CallbackReceiver → Hook -->
+      <path d="M168,420 C168,460 290,480 290,240 C290,165 308,178 308,185" stroke="#ff6b6b" stroke-width="1.8" fill="none" marker-end="url(#ah-red)" stroke-dasharray="5,3"/>
+      <text x="294" y="470" font-size="9" fill="#ff6b6b" font-family="system-ui">executeProtection()</text>
+
+      <!-- Aave → Oracles -->
+      <line x1="872" y1="242" x2="872" y2="266" stroke="#56d364" stroke-width="1" stroke-dasharray="3,3"/>
+
+      <!-- step numbers -->
+      <circle cx="170" cy="124" r="8" fill="#f0c040"/>
+      <text x="167" y="128" font-size="9" fill="#0d1117" font-weight="700" font-family="system-ui">1</text>
+
+      <circle cx="368" cy="190" r="8" fill="#58a6ff"/>
+      <text x="365" y="194" font-size="9" fill="#0d1117" font-weight="700" font-family="system-ui">2</text>
+
+      <circle cx="696" cy="235" r="8" fill="#a78bfa"/>
+      <text x="693" y="239" font-size="9" fill="#0d1117" font-weight="700" font-family="system-ui">3</text>
+
+      <circle cx="696" cy="265" r="8" fill="#56d364"/>
+      <text x="693" y="269" font-size="9" fill="#0d1117" font-weight="700" font-family="system-ui">4</text>
+
+      <circle cx="524" cy="372" r="8" fill="#a78bfa"/>
+      <text x="521" y="376" font-size="9" fill="#0d1117" font-weight="700" font-family="system-ui">5</text>
+
+      <circle cx="344" cy="405" r="8" fill="#38bdf8"/>
+      <text x="341" y="409" font-size="9" fill="#0d1117" font-weight="700" font-family="system-ui">6</text>
+
+      <circle cx="285" cy="420" r="8" fill="#ff6b6b"/>
+      <text x="282" y="424" font-size="9" fill="#0d1117" font-weight="700" font-family="system-ui">7</text>
+
+    </svg>
+  </div>
+
+  <!-- legend -->
+  <div class="legend">
+    <span style="font-size:11px;font-weight:700;color:#e6edf3;margin-right:8px;">Legend:</span>
+    <div class="legend-item">
+      <div class="legend-line" style="background:#f0c040"></div>
+      <span>User → Hook</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-line" style="background:#58a6ff"></div>
+      <span>Hook emits event</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-line" style="background:#a78bfa"></div>
+      <span>Reactive subscription</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-line" style="background:#56d364;"></div>
+      <span>On-chain events from lending</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-line" style="background:#38bdf8"></div>
+      <span>Cross-chain callback</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-line" style="background:#ff6b6b;"></div>
+      <span>Protection execution</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-line" style="background:#ff007a"></div>
+      <span>Hook ↔ Uniswap</span>
+    </div>
+  </div>
+
+  <!-- Hook Permissions -->
+  <div style="max-width:1100px;margin:28px auto 0;">
+    <div class="section-title" style="font-size:15px;">Hook Permissions</div>
+    <div class="perms-grid">
+      <span class="perm-badge perm-off">beforeInitialize</span>
+      <span class="perm-badge perm-on">afterInitialize ✓</span>
+      <span class="perm-badge perm-off">beforeAddLiquidity</span>
+      <span class="perm-badge perm-off">afterAddLiquidity</span>
+      <span class="perm-badge perm-off">beforeRemoveLiquidity</span>
+      <span class="perm-badge perm-off">afterRemoveLiquidity</span>
+      <span class="perm-badge perm-on">beforeSwap ✓</span>
+      <span class="perm-badge perm-on">afterSwap ✓</span>
+      <span class="perm-badge perm-off">beforeDonate</span>
+      <span class="perm-badge perm-off">afterDonate</span>
+      <span class="perm-badge perm-off">beforeSwapReturnDelta</span>
+      <span class="perm-badge perm-off">afterSwapReturnDelta</span>
+      <span class="perm-badge perm-off">afterAddLiquidityReturnDelta</span>
+      <span class="perm-badge perm-off">afterRemoveLiquidityReturnDelta</span>
+    </div>
+  </div>
+
+</div>
+
+
+<!-- ════════════════════════════════════════════════════════
+     PANEL 2 — USER FLOW (SEQUENCE DIAGRAM)
+════════════════════════════════════════════════════════ -->
+<div id="tab-flow" class="panel">
+
+  <div class="section-title">User Flow — Sequence Diagram</div>
+  <div class="section-sub">Complete lifecycle from position registration through autonomous cross-chain protection</div>
+
+  <div class="flow-wrap">
+
+    <!-- SVG sequence diagram -->
+    <svg viewBox="0 0 960 980" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block;">
+      <defs>
+        <marker id="s-yellow" markerWidth="8" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0,0 L0,7 L8,3.5 Z" fill="#f0c040"/></marker>
+        <marker id="s-blue"   markerWidth="8" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0,0 L0,7 L8,3.5 Z" fill="#58a6ff"/></marker>
+        <marker id="s-pink"   markerWidth="8" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0,0 L0,7 L8,3.5 Z" fill="#ff007a"/></marker>
+        <marker id="s-green"  markerWidth="8" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0,0 L0,7 L8,3.5 Z" fill="#56d364"/></marker>
+        <marker id="s-purple" markerWidth="8" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0,0 L0,7 L8,3.5 Z" fill="#a78bfa"/></marker>
+        <marker id="s-cyan"   markerWidth="8" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0,0 L0,7 L8,3.5 Z" fill="#38bdf8"/></marker>
+        <marker id="s-red"    markerWidth="8" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0,0 L0,7 L8,3.5 Z" fill="#ff6b6b"/></marker>
+        <marker id="s-orange" markerWidth="8" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0,0 L0,7 L8,3.5 Z" fill="#fb923c"/></marker>
+        <!-- left-facing -->
+        <marker id="sl-blue"   markerWidth="8" markerHeight="7" refX="0" refY="3.5" orient="auto"><path d="M8,0 L8,7 L0,3.5 Z" fill="#58a6ff"/></marker>
+        <marker id="sl-yellow" markerWidth="8" markerHeight="7" refX="0" refY="3.5" orient="auto"><path d="M8,0 L8,7 L0,3.5 Z" fill="#f0c040"/></marker>
+        <marker id="sl-green"  markerWidth="8" markerHeight="7" refX="0" refY="3.5" orient="auto"><path d="M8,0 L8,7 L0,3.5 Z" fill="#56d364"/></marker>
+        <marker id="sl-cyan"   markerWidth="8" markerHeight="7" refX="0" refY="3.5" orient="auto"><path d="M8,0 L8,7 L0,3.5 Z" fill="#38bdf8"/></marker>
+      </defs>
+
+      <!-- ── actor column x-positions ── -->
+      <!-- User=70, Hook=210, Uniswap=350, CallbackRx=490, ReactiveNet=630, Monitor=770, Aave=910 -->
+
+      <!-- actor boxes -->
+      <rect x="20" y="10" width="100" height="44" rx="8" fill="#1c2333" stroke="#f0c040" stroke-width="1.5"/>
+      <text x="70" y="30" text-anchor="middle" font-size="10" fill="#f0c040" font-weight="700" font-family="system-ui">👤 User</text>
+      <text x="70" y="46" text-anchor="middle" font-size="8" fill="#8b949e" font-family="system-ui">DeFi Trader</text>
+
+      <rect x="155" y="10" width="110" height="44" rx="8" fill="#132030" stroke="#58a6ff" stroke-width="1.5"/>
+      <text x="210" y="30" text-anchor="middle" font-size="10" fill="#79c0ff" font-weight="700" font-family="system-ui">🛡️ Shield Hook</text>
+      <text x="210" y="46" text-anchor="middle" font-size="8" fill="#8b949e" font-family="system-ui">LiquidationShieldHook</text>
+
+      <rect x="295" y="10" width="110" height="44" rx="8" fill="#1a1020" stroke="#ff007a" stroke-width="1.5"/>
+      <text x="350" y="30" text-anchor="middle" font-size="10" fill="#ff7eb6" font-weight="700" font-family="system-ui">🦄 PoolManager</text>
+      <text x="350" y="46" text-anchor="middle" font-size="8" fill="#8b949e" font-family="system-ui">Uniswap v4</text>
+
+      <rect x="435" y="10" width="110" height="44" rx="8" fill="#0d2030" stroke="#38bdf8" stroke-width="1.5"/>
+      <text x="490" y="30" text-anchor="middle" font-size="10" fill="#7dd3fc" font-weight="700" font-family="system-ui">📡 Callback Rx</text>
+      <text x="490" y="46" text-anchor="middle" font-size="8" fill="#8b949e" font-family="system-ui">CallbackReceiver</text>
+
+      <rect x="575" y="10" width="110" height="44" rx="8" fill="#1a1a2e" stroke="#7c3aed" stroke-width="1.5"/>
+      <text x="630" y="30" text-anchor="middle" font-size="10" fill="#c4b5fd" font-weight="700" font-family="system-ui">⚡ Reactive Net</text>
+      <text x="630" y="46" text-anchor="middle" font-size="8" fill="#8b949e" font-family="system-ui">Relayer + System</text>
+
+      <rect x="715" y="10" width="110" height="44" rx="8" fill="#1e1a30" stroke="#7c3aed" stroke-width="1.5"/>
+      <text x="770" y="30" text-anchor="middle" font-size="10" fill="#a78bfa" font-weight="700" font-family="system-ui">🔍 HF Monitor</text>
+      <text x="770" y="46" text-anchor="middle" font-size="8" fill="#8b949e" font-family="system-ui">HealthFactorMonitor</text>
+
+      <rect x="855" y="10" width="100" height="44" rx="8" fill="#132515" stroke="#238636" stroke-width="1.5"/>
+      <text x="905" y="30" text-anchor="middle" font-size="10" fill="#56d364" font-weight="700" font-family="system-ui">🏦 Aave</text>
+      <text x="905" y="46" text-anchor="middle" font-size="8" fill="#8b949e" font-family="system-ui">Lending Protocol</text>
+
+      <!-- lifelines -->
+      <line x1="70"  y1="54" x2="70"  y2="980" stroke="#30363d" stroke-width="1" stroke-dasharray="5,5"/>
+      <line x1="210" y1="54" x2="210" y2="980" stroke="#1f6feb" stroke-width="1" stroke-dasharray="5,5" opacity="0.5"/>
+      <line x1="350" y1="54" x2="350" y2="980" stroke="#ff007a" stroke-width="1" stroke-dasharray="5,5" opacity="0.4"/>
+      <line x1="490" y1="54" x2="490" y2="980" stroke="#38bdf8" stroke-width="1" stroke-dasharray="5,5" opacity="0.4"/>
+      <line x1="630" y1="54" x2="630" y2="980" stroke="#7c3aed" stroke-width="1" stroke-dasharray="5,5" opacity="0.4"/>
+      <line x1="770" y1="54" x2="770" y2="980" stroke="#7c3aed" stroke-width="1" stroke-dasharray="5,5" opacity="0.3"/>
+      <line x1="905" y1="54" x2="905" y2="980" stroke="#238636" stroke-width="1" stroke-dasharray="5,5" opacity="0.4"/>
+
+      <!-- ══════════════════════════
+           PHASE 1: REGISTRATION
+      ══════════════════════════ -->
+      <rect x="0" y="76" width="960" height="20" rx="0" fill="#132030"/>
+      <text x="12" y="91" font-size="10" fill="#79c0ff" font-weight="700" letter-spacing="1" font-family="system-ui">PHASE 1 — USER REGISTRATION</text>
+
+      <!-- 1. approve debtToken -->
+      <line x1="70" y1="114" x2="206" y2="114" stroke="#f0c040" stroke-width="1.5" marker-end="url(#s-yellow)"/>
+      <text x="80" y="109" font-size="9" fill="#f0c040" font-family="system-ui">1. approve(debtToken, depositAmount)</text>
+
+      <!-- 2. activateShield -->
+      <line x1="70" y1="138" x2="206" y2="138" stroke="#f0c040" stroke-width="1.8" marker-end="url(#s-yellow)"/>
+      <text x="80" y="133" font-size="9" fill="#f0c040" font-family="system-ui">2. activateShield(chainId, lendingPool, threshold, deposit)</text>
+
+      <!-- 3. transferFrom (internal) -->
+      <rect x="198" y="152" width="24" height="18" rx="3" fill="#58a6ff33"/>
+      <line x1="210" y1="152" x2="210" y2="170" stroke="#58a6ff" stroke-width="1.2"/>
+      <path d="M218,160 L218,170 L202,170" stroke="#58a6ff" stroke-width="1.2" fill="none" marker-end="url(#s-blue)"/>
+      <text x="226" y="165" font-size="9" fill="#8b949e" font-family="system-ui">3. transferFrom(user → hook)</text>
+
+      <!-- 4. store ShieldPosition -->
+      <rect x="198" y="176" width="24" height="14" rx="3" fill="#58a6ff22"/>
+      <text x="226" y="187" font-size="9" fill="#8b949e" font-family="system-ui">4. store ShieldPosition in mapping</text>
+
+      <!-- 5. emit HealthCheckRequested -->
+      <line x1="210" y1="202" x2="626" y2="202" stroke="#58a6ff" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#s-purple)"/>
+      <text x="280" y="197" font-size="9" fill="#58a6ff" font-family="system-ui">5. emit HealthCheckRequested(user, chainId, lendingPool, threshold)</text>
+
+      <!-- 6. emit ShieldActivated -->
+      <line x1="210" y1="222" x2="74" y2="222" stroke="#58a6ff" stroke-width="1.2" stroke-dasharray="3,3" marker-end="url(#sl-yellow)"/>
+      <text x="80" y="217" font-size="9" fill="#8b949e" font-family="system-ui">6. emit ShieldActivated ✓</text>
+
+      <!-- ══════════════════════════
+           PHASE 2: REACTIVE SUBSCRIBES
+      ══════════════════════════ -->
+      <rect x="0" y="240" width="960" height="20" rx="0" fill="#1e1a30"/>
+      <text x="12" y="255" font-size="10" fill="#c4b5fd" font-weight="700" letter-spacing="1" font-family="system-ui">PHASE 2 — REACTIVE NETWORK SUBSCRIPTIONS</text>
+
+      <!-- 7. react() called on HealthCheckRequested -->
+      <line x1="630" y1="278" x2="766" y2="278" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#s-purple)"/>
+      <text x="638" y="273" font-size="9" fill="#a78bfa" font-family="system-ui">7. react(log) — HealthCheckRequested detected</text>
+
+      <!-- 8. register position -->
+      <rect x="758" y="290" width="24" height="14" rx="3" fill="#a78bfa22"/>
+      <text x="790" y="300" font-size="9" fill="#8b949e" font-family="system-ui">8. register monitoredPositions[user]</text>
+
+      <!-- 9. subscribe to Borrow/Repay events on Aave -->
+      <line x1="770" y1="316" x2="901" y2="316" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#s-green)"/>
+      <text x="778" y="311" font-size="9" fill="#a78bfa" font-family="system-ui">9. subscribe(chainId, aave, Borrow/Repay/Liquidation)</text>
+
+      <!-- 10. emit PositionMonitored -->
+      <line x1="770" y1="336" x2="636" y2="336" stroke="#a78bfa" stroke-width="1.2" stroke-dasharray="3,3" marker-end="url(#sl-cyan)"/>
+      <text x="638" y="331" font-size="9" fill="#8b949e" font-family="system-ui">10. emit PositionMonitored ✓</text>
+
+      <!-- ══════════════════════════
+           PHASE 3: POOL INITIALIZATION
+      ══════════════════════════ -->
+      <rect x="0" y="356" width="960" height="20" rx="0" fill="#1a1020"/>
+      <text x="12" y="371" font-size="10" fill="#ff7eb6" font-weight="700" letter-spacing="1" font-family="system-ui">PHASE 3 — POOL INITIALIZATION (afterInitialize hook)</text>
+
+      <!-- 11. Pool created -->
+      <line x1="350" y1="394" x2="214" y2="394" stroke="#ff007a" stroke-width="1.5" marker-end="url(#s-blue)"/>
+      <text x="222" y="389" font-size="9" fill="#ff007a" font-family="system-ui">11. afterInitialize callback</text>
+
+      <!-- 12. track pool -->
+      <rect x="198" y="404" width="24" height="14" rx="3" fill="#58a6ff22"/>
+      <text x="226" y="415" font-size="9" fill="#8b949e" font-family="system-ui">12. track pool for shield-related swaps</text>
+
+      <!-- ══════════════════════════
+           PHASE 4: PROTECTION TRIGGERED
+      ══════════════════════════ -->
+      <rect x="0" y="432" width="960" height="20" rx="0" fill="#2d1515"/>
+      <text x="12" y="447" font-size="10" fill="#ffa198" font-weight="700" letter-spacing="1" font-family="system-ui">PHASE 4 — HEALTH FACTOR DROPS → REACTIVE TRIGGERS PROTECTION</text>
+
+      <!-- 13. User borrows on Aave (origin chain) -->
+      <line x1="70" y1="470" x2="901" y2="470" stroke="#f0c040" stroke-width="1.2" stroke-dasharray="6,3" marker-end="url(#s-green)"/>
+      <text x="80" y="465" font-size="9" fill="#f0c040" font-family="system-ui">13. User borrows on Aave (origin chain) — health factor drops</text>
+
+      <!-- 14. Aave emits Borrow event -->
+      <line x1="905" y1="490" x2="774" y2="490" stroke="#56d364" stroke-width="1.5" marker-end="url(#s-purple)"/>
+      <text x="780" y="485" font-size="9" fill="#56d364" font-family="system-ui">14. Borrow event → react(log)</text>
+
+      <!-- 15. estimate HF -->
+      <rect x="758" y="502" width="24" height="14" rx="3" fill="#a78bfa22"/>
+      <text x="790" y="512" font-size="9" fill="#8b949e" font-family="system-ui">15. _estimateHealthFactor() → 1.1e18 &lt; threshold (1.2e18)</text>
+
+      <!-- 16. _calculateRepayAmount -->
+      <rect x="758" y="522" width="24" height="14" rx="3" fill="#a78bfa22"/>
+      <text x="790" y="532" font-size="9" fill="#8b949e" font-family="system-ui">16. _calculateRepayAmount(1.1e18, 1.2e18)</text>
+
+      <!-- 17. emit Callback -->
+      <line x1="770" y1="548" x2="634" y2="548" stroke="#a78bfa" stroke-width="1.8" marker-end="url(#sl-cyan)"/>
+      <text x="638" y="543" font-size="9" fill="#a78bfa" font-family="system-ui">17. emit Callback(hookChainId, callbackReceiver, payload)</text>
+
+      <!-- 18. emit ProtectionCallbackSent -->
+      <rect x="758" y="560" width="24" height="14" rx="3" fill="#a78bfa22"/>
+      <text x="790" y="571" font-size="9" fill="#8b949e" font-family="system-ui">18. emit ProtectionCallbackSent ✓</text>
+
+      <!-- ══════════════════════════
+           PHASE 5: CROSS-CHAIN RELAY
+      ══════════════════════════ -->
+      <rect x="0" y="590" width="960" height="20" rx="0" fill="#0d2030"/>
+      <text x="12" y="605" font-size="10" fill="#7dd3fc" font-weight="700" letter-spacing="1" font-family="system-ui">PHASE 5 — CROSS-CHAIN RELAY → CALLBACK RECEIVER</text>
+
+      <!-- 19. relayer picks up Callback event -->
+      <line x1="630" y1="628" x2="494" y2="628" stroke="#38bdf8" stroke-width="1.8" marker-end="url(#sl-cyan)"/>
+      <text x="498" y="623" font-size="9" fill="#38bdf8" font-family="system-ui">19. receiveCallback(payload) — Reactive relayer delivers tx</text>
+
+      <!-- 20. decode payload -->
+      <rect x="478" y="640" width="24" height="14" rx="3" fill="#38bdf822"/>
+      <text x="506" y="650" font-size="9" fill="#8b949e" font-family="system-ui">20. decode payload → user, healthFactor, repayAmount</text>
+
+      <!-- 21. emit CallbackReceived -->
+      <rect x="478" y="660" width="24" height="14" rx="3" fill="#38bdf822"/>
+      <text x="506" y="670" font-size="9" fill="#8b949e" font-family="system-ui">21. emit CallbackReceived(user, hf, repayAmount)</text>
+
+      <!-- 22. forward to hook -->
+      <line x1="490" y1="686" x2="214" y2="686" stroke="#38bdf8" stroke-width="1.8" marker-end="url(#s-blue)"/>
+      <text x="222" y="681" font-size="9" fill="#38bdf8" font-family="system-ui">22. hook.call(payload) → executeProtection(user, hf, repay)</text>
+
+      <!-- ══════════════════════════
+           PHASE 6: PROTECTION EXECUTION
+      ══════════════════════════ -->
+      <rect x="0" y="706" width="960" height="20" rx="0" fill="#132515"/>
+      <text x="12" y="721" font-size="10" fill="#56d364" font-weight="700" letter-spacing="1" font-family="system-ui">PHASE 6 — PROTECTION EXECUTION (executeProtection)</text>
+
+      <!-- 23. validate -->
+      <rect x="198" y="734" width="24" height="14" rx="3" fill="#58a6ff22"/>
+      <text x="226" y="744" font-size="9" fill="#8b949e" font-family="system-ui">23. validate: caller = callbackReceiver, isActive, HF &lt; threshold, cooldown</text>
+
+      <!-- 24. calculate fee & deduct deposit -->
+      <rect x="198" y="754" width="24" height="14" rx="3" fill="#58a6ff22"/>
+      <text x="226" y="764" font-size="9" fill="#8b949e" font-family="system-ui">24. fee = repay × 0.5%, netRepay = repay - fee, deduct depositBalance</text>
+
+      <!-- 25. approve & repay lending pool -->
+      <line x1="210" y1="786" x2="901" y2="786" stroke="#56d364" stroke-width="1.5" marker-end="url(#s-green)"/>
+      <text x="222" y="781" font-size="9" fill="#56d364" font-family="system-ui">25. approve(lendingPool, netRepay) + repay(debtToken, netRepay, user)</text>
+
+      <!-- 26. emit ShieldTriggered -->
+      <line x1="210" y1="808" x2="74" y2="808" stroke="#58a6ff" stroke-width="1.2" stroke-dasharray="3,3" marker-end="url(#sl-yellow)"/>
+      <text x="80" y="803" font-size="9" fill="#8b949e" font-family="system-ui">26. emit ShieldTriggered(user, chainId, hfBefore, netRepay) ✓</text>
+
+      <!-- ══════════════════════════
+           PHASE 7: SWAP HOOKS
+      ══════════════════════════ -->
+      <rect x="0" y="826" width="960" height="20" rx="0" fill="#1a1020"/>
+      <text x="12" y="841" font-size="10" fill="#ff7eb6" font-weight="700" letter-spacing="1" font-family="system-ui">PHASE 7 — UNISWAP V4 HOOK CALLBACKS (during protection swap)</text>
+
+      <!-- 27. beforeSwap - fee discount -->
+      <line x1="350" y1="864" x2="214" y2="864" stroke="#ff007a" stroke-width="1.5" marker-end="url(#s-blue)"/>
+      <text x="222" y="859" font-size="9" fill="#ff007a" font-family="system-ui">27. _beforeSwap() → hookData has user address → 50% fee discount applied</text>
+
+      <!-- 28. afterSwap - log -->
+      <line x1="350" y1="886" x2="214" y2="886" stroke="#ff007a" stroke-width="1.5" marker-end="url(#s-blue)"/>
+      <text x="222" y="881" font-size="9" fill="#ff007a" font-family="system-ui">28. _afterSwap() → emit ProtectionSwapLogged(user, chainId, swapAmt)</text>
+
+      <!-- 29. user position restored -->
+      <line x1="210" y1="910" x2="74" y2="910" stroke="#56d364" stroke-width="1.8" marker-end="url(#sl-yellow)"/>
+      <text x="80" y="905" font-size="9.5" fill="#56d364" font-weight="700" font-family="system-ui">29. ✅ User position protected — health factor restored</text>
+
+      <!-- Phase labels (numbered circles) -->
+      <circle cx="12" cy="266" r="8" fill="#58a6ff"/>
+      <text x="9" y="270" font-size="8" fill="#0d1117" font-weight="700" font-family="system-ui">P2</text>
+      <circle cx="12" cy="382" r="8" fill="#ff007a"/>
+      <text x="9" y="386" font-size="8" fill="#0d1117" font-weight="700" font-family="system-ui">P3</text>
+      <circle cx="12" cy="447" r="8" fill="#ff6b6b"/>
+      <text x="9" y="451" font-size="8" fill="#0d1117" font-weight="700" font-family="system-ui">P4</text>
+      <circle cx="12" cy="610" r="8" fill="#38bdf8"/>
+      <text x="9" y="614" font-size="8" fill="#0d1117" font-weight="700" font-family="system-ui">P5</text>
+      <circle cx="12" cy="721" r="8" fill="#56d364"/>
+      <text x="9" y="725" font-size="8" fill="#0d1117" font-weight="700" font-family="system-ui">P6</text>
+      <circle cx="12" cy="841" r="8" fill="#ff007a"/>
+      <text x="9" y="845" font-size="8" fill="#0d1117" font-weight="700" font-family="system-ui">P7</text>
+    </svg>
+  </div>
+
+</div>
+
+
+<!-- ════════════════════════════════════════════════════════
+     PANEL 3 — CONTRACT REFERENCE
+════════════════════════════════════════════════════════ -->
+<div id="tab-ref" class="panel">
+
+  <div class="section-title">Contract Reference</div>
+  <div class="section-sub">Key functions and their roles across all contracts in the system</div>
+
+  <div class="ref-grid">
+
+    <!-- LiquidationShieldHook -->
+    <div class="ref-card" style="border-color:#1f6feb55;">
+      <h3 style="color:#79c0ff;">🛡️ LiquidationShieldHook</h3>
+      <div class="ref-path">src/hooks/LiquidationShieldHook.sol</div>
+
+      <div class="ref-fn">
+        <div class="ref-fn-name" style="color:#f0c040;">activateShield()<span class="badge badge-ext">external</span></div>
+        <div class="ref-fn-desc">User registers lending position. Transfers deposit, stores ShieldPosition, emits HealthCheckRequested for Reactive to subscribe.</div>
+      </div>
+      <div class="ref-fn">
+        <div class="ref-fn-name" style="color:#f0c040;">deactivateShield()<span class="badge badge-ext">external</span></div>
+        <div class="ref-fn-desc">User exits protection and retrieves remaining deposit balance.</div>
+      </div>
+      <div class="ref-fn">
+        <div class="ref-fn-name" style="color:#f0c040;">topUpDeposit()<span class="badge badge-ext">external</span></div>
+        <div class="ref-fn-desc">Adds more protection funds to an existing active shield.</div>
+      </div>
+      <div class="ref-fn">
+        <div class="ref-fn-name" style="color:#f0c040;">updateThreshold()<span class="badge badge-ext">external</span></div>
+        <div class="ref-fn-desc">Updates the user's health factor threshold. Re-emits HealthCheckRequested so Reactive Network picks up the new value.</div>
+      </div>
+      <div class="ref-fn">
+        <div class="ref-fn-name" style="color:#ff6b6b;">executeProtection()<span class="badge badge-ext">external</span></div>
+        <div class="ref-fn-desc">Called exclusively by CallbackReceiver. Validates cooldown, deducts deposit, charges 0.5% fee, approves and repays lending protocol.</div>
+      </div>
+      <div class="ref-fn">
+        <div class="ref-fn-name" style="color:#ff7eb6;">_afterInitialize()<span class="badge badge-hook">hook</span></div>
+        <div class="ref-fn-desc">Called by Uniswap v4 after a pool is created. Registers the pool for shield-related swap tracking.</div>
+      </div>
+      <div class="ref-fn">
+        <div class="ref-fn-name" style="color:#ff7eb6;">_beforeSwap()<span class="badge badge-hook">hook</span></div>
+        <div class="ref-fn-desc">Grants a 50% LP fee discount when hookData encodes an active protected user address. Uses <code style="font-size:9px;background:#21262d;padding:1px 4px;border-radius:3px;color:#79c0ff">LPFeeLibrary.OVERRIDE_FEE_FLAG</code>.</div>
+      </div>
+      <div class="ref-fn">
+        <div class="ref-fn-name" style="color:#ff7eb6;">_afterSwap()<span class="badge badge-hook">hook</span></div>
+        <div class="ref-fn-desc">Emits <code style="font-size:9px;background:#21262d;padding:1px 4px;border-radius:3px;color:#79c0ff">ProtectionSwapLogged</code> when a shield-tagged swap completes. Does <em>not</em> execute protection — that is handled by <code style="font-size:9px;background:#21262d;padding:1px 4px;border-radius:3px;color:#79c0ff">executeProtection()</code>.</div>
+      </div>
+      <div class="ref-fn">
+        <div class="ref-fn-name" style="color:#f0c040;">withdrawFees()<span class="badge badge-admin">admin</span></div>
+        <div class="ref-fn-desc">Owner withdraws accumulated fees for a single specified token.</div>
+      </div>
+      <div class="ref-fn">
+        <div class="ref-fn-name" style="color:#f0c040;">withdrawAllFees()<span class="badge badge-admin">admin</span></div>
+        <div class="ref-fn-desc">Owner withdraws all accumulated protocol fees across every collected token in one call.</div>
+      </div>
+      <div class="ref-fn">
+        <div class="ref-fn-name" style="color:#f0c040;">setCallbackReceiver() / setMinDeposit()<span class="badge badge-admin">admin</span></div>
+        <div class="ref-fn-desc">Owner updates the authorized callback receiver address or the minimum deposit floor. Both revert with <code style="font-size:9px;background:#21262d;padding:1px 4px;border-radius:3px;color:#79c0ff">NotAuthorized</code> for non-owners.</div>
+      </div>
+    </div>
+
+    <!-- HealthFactorMonitor -->
+    <div class="ref-card" style="border-color:#7c3aed55;">
+      <h3 style="color:#c4b5fd;">🔍 HealthFactorMonitor</h3>
+      <div class="ref-path">src/reactive/HealthFactorMonitor.sol</div>
+
+      <div class="ref-fn">
+        <div class="ref-fn-name" style="color:#c4b5fd;">init()<span class="badge badge-ext">external</span></div>
+        <div class="ref-fn-desc">Called once after deployment by the owner. Subscribes to <code style="font-size:9px;background:#21262d;padding:1px 4px;border-radius:3px;color:#c4b5fd">HealthCheckRequested</code> events from the hook contract on the origin chain. Gated behind <code style="font-size:9px;background:#21262d;padding:1px 4px;border-radius:3px;color:#c4b5fd">!vm</code> — only executes on the Reactive Network, not inside ReactVM.</div>
+      </div>
+      <div class="ref-fn">
+        <div class="ref-fn-name" style="color:#c4b5fd;">react()<span class="badge badge-ext">external</span></div>
+        <div class="ref-fn-desc">Entry point called by the Reactive Network on every subscribed event. Gated by <code style="font-size:9px;background:#21262d;padding:1px 4px;border-radius:3px;color:#c4b5fd">vmOnly</code>. Routes to <code style="font-size:9px;background:#21262d;padding:1px 4px;border-radius:3px;color:#c4b5fd">_handleHealthCheckRequest</code> or <code style="font-size:9px;background:#21262d;padding:1px 4px;border-radius:3px;color:#c4b5fd">_handleLendingEvent</code> based on topic_0.</div>
+      </div>
+      <div class="ref-fn">
+        <div class="ref-fn-name" style="color:#a78bfa;">_handleHealthCheckRequest()<span class="badge badge-int">internal</span></div>
+        <div class="ref-fn-desc">Registers a new user for monitoring when HealthCheckRequested is detected. Calls _subscribeToLendingEvents.</div>
+      </div>
+      <div class="ref-fn">
+        <div class="ref-fn-name" style="color:#a78bfa;">_handleLendingEvent()<span class="badge badge-int">internal</span></div>
+        <div class="ref-fn-desc">Processes Borrow/Repay/Liquidation events. Estimates health factor and triggers _triggerProtection if below threshold.</div>
+      </div>
+      <div class="ref-fn">
+        <div class="ref-fn-name" style="color:#a78bfa;">_estimateHealthFactor()<span class="badge badge-int">internal</span></div>
+        <div class="ref-fn-desc">Simplified HF estimation from log data. Production version queries oracle prices for precise calculation.</div>
+      </div>
+      <div class="ref-fn">
+        <div class="ref-fn-name" style="color:#a78bfa;">_triggerProtection()<span class="badge badge-int">internal</span></div>
+        <div class="ref-fn-desc">Emits Callback event with encoded executeProtection payload. Reactive relayer delivers this cross-chain.</div>
+      </div>
+      <div class="ref-fn">
+        <div class="ref-fn-name" style="color:#a78bfa;">_subscribeToLendingEvents()<span class="badge badge-int">internal</span></div>
+        <div class="ref-fn-desc">Subscribes to Borrow, Repay and LiquidationCall events on the lending pool via ISubscriptionService.</div>
+      </div>
+      <div class="ref-fn">
+        <div class="ref-fn-name" style="color:#f0c040;">addMonitoredPosition()<span class="badge badge-admin">admin</span></div>
+        <div class="ref-fn-desc">Owner can manually register a position for monitoring without waiting for the hook's HealthCheckRequested event.</div>
+      </div>
+    </div>
+
+    <!-- CallbackReceiver -->
+    <div class="ref-card" style="border-color:#38bdf855;">
+      <h3 style="color:#7dd3fc;">📡 CallbackReceiver</h3>
+      <div class="ref-path">src/reactive/CallbackReceiver.sol</div>
+
+      <div class="ref-fn">
+        <div class="ref-fn-name" style="color:#7dd3fc;">receiveCallback()<span class="badge badge-ext">external</span></div>
+        <div class="ref-fn-desc">Main entry for Reactive Network relayer. Decodes raw payload, emits CallbackReceived, then forwards to hook via low-level call.</div>
+      </div>
+      <div class="ref-fn">
+        <div class="ref-fn-name" style="color:#7dd3fc;">triggerProtection()<span class="badge badge-ext">external</span></div>
+        <div class="ref-fn-desc">Alternative typed entry point — calls executeProtection() directly without raw payload decoding.</div>
+      </div>
+      <div class="ref-fn">
+        <div class="ref-fn-name" style="color:#f0c040;">addAuthorizedCaller()<span class="badge badge-admin">admin</span></div>
+        <div class="ref-fn-desc">Whitelists an address (e.g. the Reactive callback proxy) that is allowed to call <code style="font-size:9px;background:#21262d;padding:1px 4px;border-radius:3px;color:#7dd3fc">receiveCallback</code> / <code style="font-size:9px;background:#21262d;padding:1px 4px;border-radius:3px;color:#7dd3fc">triggerProtection</code>.</div>
+      </div>
+      <div class="ref-fn">
+        <div class="ref-fn-name" style="color:#f0c040;">removeAuthorizedCaller()<span class="badge badge-admin">admin</span></div>
+        <div class="ref-fn-desc">Removes a previously whitelisted caller from the authorized set.</div>
+      </div>
+      <div class="ref-fn">
+        <div class="ref-fn-name" style="color:#f0c040;">setHook()<span class="badge badge-admin">admin</span></div>
+        <div class="ref-fn-desc">Owner updates the hook contract address that callbacks are forwarded to. Reverts with <code style="font-size:9px;background:#21262d;padding:1px 4px;border-radius:3px;color:#7dd3fc">NotAuthorized</code> for non-owners.</div>
+      </div>
+    </div>
+
+    <!-- Data & Events -->
+    <div class="ref-card" style="border-color:#23863655;">
+      <h3 style="color:#56d364;">📋 Key Data Structures &amp; Events</h3>
+      <div class="ref-path">LiquidationShieldHook.sol</div>
+
+      <div class="ref-fn">
+        <div class="ref-fn-name" style="color:#56d364;">ShieldPosition struct</div>
+        <div class="ref-fn-desc"><code style="font-size:9px;background:#21262d;padding:1px 4px;border-radius:3px;color:#56d364">user</code> · <code style="font-size:9px;background:#21262d;padding:1px 4px;border-radius:3px;color:#56d364">originChainId</code> · <code style="font-size:9px;background:#21262d;padding:1px 4px;border-radius:3px;color:#56d364">lendingPool</code> · <code style="font-size:9px;background:#21262d;padding:1px 4px;border-radius:3px;color:#56d364">debtToken</code> · <code style="font-size:9px;background:#21262d;padding:1px 4px;border-radius:3px;color:#56d364">collateralToken</code> · <code style="font-size:9px;background:#21262d;padding:1px 4px;border-radius:3px;color:#56d364">healthThreshold</code> (1e18 scale) · <code style="font-size:9px;background:#21262d;padding:1px 4px;border-radius:3px;color:#56d364">depositBalance</code> · <code style="font-size:9px;background:#21262d;padding:1px 4px;border-radius:3px;color:#56d364">protectionFee</code> (bps) · <code style="font-size:9px;background:#21262d;padding:1px 4px;border-radius:3px;color:#56d364">lastTriggered</code> (timestamp) · <code style="font-size:9px;background:#21262d;padding:1px 4px;border-radius:3px;color:#56d364">isActive</code>.</div>
+      </div>
+      <div class="ref-fn">
+        <div class="ref-fn-name" style="color:#56d364;">ShieldActivated event</div>
+        <div class="ref-fn-desc">Emitted on <code style="font-size:9px;background:#21262d;padding:1px 4px;border-radius:3px;color:#56d364">activateShield()</code>. Indexed: <code style="font-size:9px;background:#21262d;padding:1px 4px;border-radius:3px;color:#56d364">user</code>, <code style="font-size:9px;background:#21262d;padding:1px 4px;border-radius:3px;color:#56d364">originChainId</code>. Data: lendingPool, healthThreshold, depositAmount.</div>
+      </div>
+      <div class="ref-fn">
+        <div class="ref-fn-name" style="color:#56d364;">ShieldDeactivated event</div>
+        <div class="ref-fn-desc">Emitted on <code style="font-size:9px;background:#21262d;padding:1px 4px;border-radius:3px;color:#56d364">deactivateShield()</code>. Indexed: <code style="font-size:9px;background:#21262d;padding:1px 4px;border-radius:3px;color:#56d364">user</code>. Data: refundAmount (0 if deposit was fully consumed).</div>
+      </div>
+      <div class="ref-fn">
+        <div class="ref-fn-name" style="color:#56d364;">HealthCheckRequested event</div>
+        <div class="ref-fn-desc">Emitted on <code style="font-size:9px;background:#21262d;padding:1px 4px;border-radius:3px;color:#56d364">activateShield()</code> and <code style="font-size:9px;background:#21262d;padding:1px 4px;border-radius:3px;color:#56d364">updateThreshold()</code>. All four params indexed. Reactive Network picks this up to start monitoring.</div>
+      </div>
+      <div class="ref-fn">
+        <div class="ref-fn-name" style="color:#56d364;">ShieldTriggered event</div>
+        <div class="ref-fn-desc">Emitted after successful <code style="font-size:9px;background:#21262d;padding:1px 4px;border-radius:3px;color:#56d364">executeProtection()</code>. Fields: user (indexed), originChainId (indexed), healthFactorBefore, repayAmount, newHealthFactor (0 = calculated off-chain).</div>
+      </div>
+      <div class="ref-fn">
+        <div class="ref-fn-name" style="color:#56d364;">ProtectionSwapLogged event</div>
+        <div class="ref-fn-desc">Emitted in _afterSwap when a shield-tagged swap passes through the pool.</div>
+      </div>
+      <div class="ref-fn">
+        <div class="ref-fn-name" style="color:#56d364;">ProtectionSwapLogged event</div>
+        <div class="ref-fn-desc">Emitted in <code style="font-size:9px;background:#21262d;padding:1px 4px;border-radius:3px;color:#56d364">_afterSwap</code> when hookData encodes an active protected user. Fields: user (indexed), originChainId (indexed), swapAmount.</div>
+      </div>
+      <div class="ref-fn">
+        <div class="ref-fn-name" style="color:#56d364;">Constants &amp; bounds</div>
+        <div class="ref-fn-desc"><code style="font-size:9px;background:#21262d;padding:1px 4px;border-radius:3px;color:#56d364">COOLDOWN_PERIOD</code> = 5 minutes &nbsp;·&nbsp; <code style="font-size:9px;background:#21262d;padding:1px 4px;border-radius:3px;color:#56d364">DEFAULT_FEE_BPS</code> = 50 (0.5%) &nbsp;·&nbsp; threshold range: <code style="font-size:9px;background:#21262d;padding:1px 4px;border-radius:3px;color:#56d364">1.0e18 – 2.0e18</code></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function showTab(id, btn) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  btn.classList.add('active');
+}
+</script>
+</body>
+</html>

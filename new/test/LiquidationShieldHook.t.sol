@@ -15,7 +15,7 @@ import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
 import {LiquidationShieldHook} from "../src/hooks/LiquidationShieldHook.sol";
 import {CallbackReceiver} from "../src/reactive/CallbackReceiver.sol";
 import {HealthFactorMonitor} from "../src/reactive/HealthFactorMonitor.sol";
-import {IReactive} from "../src/interfaces/IReactive.sol";
+import {IReactive} from "@reactive-lib/interfaces/IReactive.sol";
 import {ISubscriptionService} from "../src/interfaces/ISubscriptionService.sol";
 import {IERC20} from "forge-std/interfaces/IERC20.sol";
 import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
@@ -31,27 +31,27 @@ contract MockLendingPool {
 
 /// @dev Mock subscription service for HealthFactorMonitor tests
 contract MockSubscriptionService is ISubscriptionService {
-    event Subscribed(uint256 chainId, address _contract, bytes32 topic_0);
+    event Subscribed(uint256 chainId, address _contract, uint256 topic_0);
 
     function subscribe(
         uint256 chain_id,
         address _contract,
-        bytes32 topic_0,
-        bytes32,
-        bytes32,
-        bytes32
+        uint256 topic_0,
+        uint256,
+        uint256,
+        uint256
     ) external override {
         emit Subscribed(chain_id, _contract, topic_0);
     }
 
-    function unsubscribe(uint256, address, bytes32, bytes32, bytes32, bytes32) external override {}
+    function unsubscribe(uint256, address, uint256, uint256, uint256, uint256) external override {}
 }
 
 /// @dev Harness to test internal functions and otherwise unreachable modifiers of HealthFactorMonitor
 contract HealthFactorMonitorHarness is HealthFactorMonitor {
     constructor(
-        address _sub, uint256 _cId, address _cb, address _hk, uint256 _oId
-    ) HealthFactorMonitor(_sub, _cId, _cb, _hk, _oId) {}
+        uint256 _cId, address _cb, address _hk, uint256 _oId
+    ) HealthFactorMonitor(_cId, _cb, _hk, _oId) {}
 
     function testRnOnly() external rnOnly {}
 
@@ -744,12 +744,15 @@ contract LiquidationShieldHookTest is Test, Deployers {
     function _deployMonitor() internal returns (HealthFactorMonitor m) {
         subService = new MockSubscriptionService();
         m = new HealthFactorMonitor(
-            address(subService),
             1,                         // hookChainId
             address(callbackReceiver),
             address(hook),
             SEPOLIA_CHAIN_ID
         );
+        // Etch MockSubscriptionService code at the system contract address so that
+        // service.subscribe() calls succeed in tests (Solidity 0.8.x rejects calls
+        // to addresses with no code when using an interface type).
+        vm.etch(address(0x0000000000000000000000000000000000fffFfF), address(subService).code);
     }
 
     function _buildLog(
@@ -998,25 +1001,26 @@ contract LiquidationShieldHookTest is Test, Deployers {
         
         // This deployment will now execute the `if (!vm)` branch and subscribe
         HealthFactorMonitor rnMonitor = new HealthFactorMonitor(
-            address(subService),
             1,
             address(callbackReceiver),
             address(hook),
             SEPOLIA_CHAIN_ID
         );
-        
-        assertFalse(rnMonitor.vm());
-        
+
+        assertEq(rnMonitor.hookChainId(), 1);
+
         // Cleanup etch so it doesn't break other tests
         vm.etch(sysContract, bytes(""));
     }
 
     function test_Monitor_Harness_RnOnly_Revert() public {
         _deployMonitor();
+        // Clear etch so 0xfffFfF has no code → detectVm sets vm=true → rnOnly reverts
+        vm.etch(address(0x0000000000000000000000000000000000fffFfF), bytes(""));
         HealthFactorMonitorHarness harness = new HealthFactorMonitorHarness(
-            address(subService), 1, address(callbackReceiver), address(hook), SEPOLIA_CHAIN_ID
+            1, address(callbackReceiver), address(hook), SEPOLIA_CHAIN_ID
         );
-        vm.expectRevert("RN only");
+        vm.expectRevert("Reactive Network only");
         harness.testRnOnly();
     }
 
@@ -1026,7 +1030,7 @@ contract LiquidationShieldHookTest is Test, Deployers {
         vm.etch(sysContract, bytes("mock code"));
         
         HealthFactorMonitorHarness harness = new HealthFactorMonitorHarness(
-            address(subService), 1, address(callbackReceiver), address(hook), SEPOLIA_CHAIN_ID
+            1, address(callbackReceiver), address(hook), SEPOLIA_CHAIN_ID
         );
         
         harness.testRnOnly(); // should not revert
@@ -1037,7 +1041,7 @@ contract LiquidationShieldHookTest is Test, Deployers {
     function test_Monitor_Harness_CalculateRepay_GtTarget() public {
         _deployMonitor();
         HealthFactorMonitorHarness harness = new HealthFactorMonitorHarness(
-            address(subService), 1, address(callbackReceiver), address(hook), SEPOLIA_CHAIN_ID
+            1, address(callbackReceiver), address(hook), SEPOLIA_CHAIN_ID
         );
         assertEq(harness.testCalculateRepay(1.5e18, 1.2e18), 0);
     }

@@ -16,7 +16,7 @@ contract DeployTokens is Script {
         console.log("Token0 deployed at:", address(token0));
         console.log("Token1 deployed at:", address(token1));
         
-        address deployer = 0x8822F2965090Ddc102F7de354dfd6E642C090269;
+        address deployer = vm.addr(deployerPrivateKey);
         token0.mint(deployer, 1000e18);
         token1.mint(deployer, 1000e18);
 

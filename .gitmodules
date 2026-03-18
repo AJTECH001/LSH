@@ -13,3 +13,15 @@
 [submodule "lib/uniswap-hooks"]
 	path = lib/uniswap-hooks
 	url = https://github.com/OpenZeppelin/uniswap-hooks
+[submodule "lib/hookmate"]
+	path = lib/hookmate
+	url = https://github.com/akshatmittal/hookmate
+[submodule "new/lib/forge-std"]
+	path = new/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+[submodule "new/lib/reactive-lib"]
+	path = new/lib/reactive-lib
+	url = https://github.com/Reactive-Network/reactive-lib
+[submodule "new/lib/uniswap-hooks"]
+	path = new/lib/uniswap-hooks
+	url = https://github.com/OpenZeppelin/uniswap-hooks

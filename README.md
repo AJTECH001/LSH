@@ -87,7 +87,7 @@ Clone the repository and install dependencies:
 
 ```bash
 git clone https://github.com/AJTECH001/LSH.git
-cd LSH/new
+cd LSH
 forge install
 ```
 
@@ -117,9 +117,9 @@ forge test -vvv
 
 | Contract | Role | Location |
 | --- | --- | --- |
-| **`LiquidationShieldHook`** | V4 Hook — manages user deposits, executes debt repayment, applies fee discounts. | `new/src/hooks/LiquidationShieldHook.sol` |
-| **`HealthFactorMonitor`** | Reactive contract — subscribes to lending events cross-chain, evaluates health factor, emits callbacks. | `new/src/reactive/HealthFactorMonitor.sol` |
-| **`CallbackReceiver`** | Callback bridge — validates Reactive relayer, decodes payload, forwards to hook. | `new/src/reactive/CallbackReceiver.sol` |
+| **`LiquidationShieldHook`** | V4 Hook — manages user deposits, executes debt repayment, applies fee discounts. | `src/hooks/LiquidationShieldHook.sol` |
+| **`HealthFactorMonitor`** | Reactive contract — subscribes to lending events cross-chain, evaluates health factor, emits callbacks. | `src/reactive/HealthFactorMonitor.sol` |
+| **`CallbackReceiver`** | Callback bridge — validates Reactive relayer, decodes payload, forwards to hook. | `src/reactive/CallbackReceiver.sol` |
 
 ---
 

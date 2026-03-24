@@ -17,12 +17,12 @@ contract MockLendingPool {
     function triggerBorrow(address user, uint256 amount) external {
         emit Borrow(
             address(0), // reserve
-            user,       // user
-            user,       // onBehalfOf (topic_2)
-            amount,     // amount
-            1,          // borrowRateMode
-            0,          // borrowRate
-            0           // referralCode
+            user, // user
+            user, // onBehalfOf (topic_2)
+            amount, // amount
+            1, // borrowRateMode
+            0, // borrowRate
+            0 // referralCode
         );
     }
 }

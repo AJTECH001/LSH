@@ -20,34 +20,21 @@ contract DeploySepolia is BaseScript {
         console.log("CallbackReceiver deployed at:", address(callbackReceiver));
 
         // 2. Mine and Deploy Hook
-        uint160 flags = uint160(
-            Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
-        );
+        uint160 flags = uint160(Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG);
 
-        bytes memory constructorArgs = abi.encode(
-            poolManager, 
-            address(callbackReceiver), 
-            MIN_DEPOSIT
-        );
-        
-        (address hookAddress, bytes32 salt) = HookMiner.find(
-            CREATE2_FACTORY, 
-            flags, 
-            type(LiquidationShieldHook).creationCode, 
-            constructorArgs
-        );
+        bytes memory constructorArgs = abi.encode(poolManager, address(callbackReceiver), MIN_DEPOSIT);
 
-        LiquidationShieldHook hook = new LiquidationShieldHook{salt: salt}(
-            poolManager,
-            address(callbackReceiver),
-            MIN_DEPOSIT
-        );
+        (address hookAddress, bytes32 salt) =
+            HookMiner.find(CREATE2_FACTORY, flags, type(LiquidationShieldHook).creationCode, constructorArgs);
+
+        LiquidationShieldHook hook =
+            new LiquidationShieldHook{salt: salt}(poolManager, address(callbackReceiver), MIN_DEPOSIT);
 
         console.log("LiquidationShieldHook deployed at:", address(hook));
 
         // 3. Link them
         callbackReceiver.setHook(address(hook));
-        
+
         // Authorize Reactive Network callback proxy for Unichain Sepolia
         address reactiveCallbackProxy = vm.envAddress("UNICHAIN_CALLBACK_PROXY");
         callbackReceiver.addAuthorizedCaller(reactiveCallbackProxy);

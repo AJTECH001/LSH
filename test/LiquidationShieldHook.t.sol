@@ -33,14 +33,10 @@ contract MockLendingPool {
 contract MockSubscriptionService is ISubscriptionService {
     event Subscribed(uint256 chainId, address _contract, uint256 topic_0);
 
-    function subscribe(
-        uint256 chain_id,
-        address _contract,
-        uint256 topic_0,
-        uint256,
-        uint256,
-        uint256
-    ) external override {
+    function subscribe(uint256 chain_id, address _contract, uint256 topic_0, uint256, uint256, uint256)
+        external
+        override
+    {
         emit Subscribed(chain_id, _contract, topic_0);
     }
 
@@ -49,9 +45,7 @@ contract MockSubscriptionService is ISubscriptionService {
 
 /// @dev Harness to test internal functions and otherwise unreachable modifiers of HealthFactorMonitor
 contract HealthFactorMonitorHarness is HealthFactorMonitor {
-    constructor(
-        uint256 _cId, address _cb, address _hk, uint256 _oId
-    ) HealthFactorMonitor(_cId, _cb, _hk, _oId) {}
+    constructor(uint256 _cId, address _cb, address _hk, uint256 _oId) HealthFactorMonitor(_cId, _cb, _hk, _oId) {}
 
     function testRnOnly() external rnOnly {}
 
@@ -78,15 +72,15 @@ contract LiquidationShieldHookTest is Test, Deployers {
 
     // ── Contracts ─────────────────────────────────────────────────────────────
     LiquidationShieldHook public hook;
-    CallbackReceiver      public callbackReceiver;
+    CallbackReceiver public callbackReceiver;
 
     // ── Pool ──────────────────────────────────────────────────────────────────
     PoolKey poolKey;
 
     // ── Test Accounts ─────────────────────────────────────────────────────────
     address public deployer = address(0xDEAD);
-    address public user1    = address(0x1111);
-    address public user2    = address(0x2222);
+    address public user1 = address(0x1111);
+    address public user2 = address(0x2222);
     address public attacker = address(0xBAD);
 
     // ── Mock Addresses ────────────────────────────────────────────────────────
@@ -96,28 +90,24 @@ contract LiquidationShieldHookTest is Test, Deployers {
 
     // ── Constants ─────────────────────────────────────────────────────────────
     uint256 constant SEPOLIA_CHAIN_ID = 11155111;
-    uint256 constant MIN_DEPOSIT      = 100e18;
-    uint256 constant INITIAL_BALANCE  = 10_000e18;
+    uint256 constant MIN_DEPOSIT = 100e18;
+    uint256 constant INITIAL_BALANCE = 10_000e18;
 
     // ── Setup ─────────────────────────────────────────────────────────────────
     function setUp() public {
         deployFreshManagerAndRouters();
         (Currency currency0, Currency currency1) = deployMintAndApprove2Currencies();
 
-        mockDebtToken       = Currency.unwrap(currency0);
+        mockDebtToken = Currency.unwrap(currency0);
         mockCollateralToken = Currency.unwrap(currency1);
-        mockLendingPool     = address(new MockLendingPool());
+        mockLendingPool = address(new MockLendingPool());
 
         vm.startPrank(deployer);
 
         callbackReceiver = new CallbackReceiver(address(0));
 
         // Flags: AFTER_INITIALIZE | BEFORE_SWAP | AFTER_SWAP
-        uint160 flags = uint160(
-            Hooks.AFTER_INITIALIZE_FLAG |
-            Hooks.BEFORE_SWAP_FLAG      |
-            Hooks.AFTER_SWAP_FLAG
-        );
+        uint160 flags = uint160(Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG);
         address hookAddress = address(flags);
         deployCodeTo(
             "src/hooks/LiquidationShieldHook.sol:LiquidationShieldHook",
@@ -139,10 +129,10 @@ contract LiquidationShieldHookTest is Test, Deployers {
         modifyLiquidityRouter.modifyLiquidity(
             poolKey,
             ModifyLiquidityParams({
-                tickLower:      TickMath.minUsableTick(60),
-                tickUpper:      TickMath.maxUsableTick(60),
+                tickLower: TickMath.minUsableTick(60),
+                tickUpper: TickMath.maxUsableTick(60),
                 liquidityDelta: 100e18,
-                salt:           bytes32(0)
+                salt: bytes32(0)
             }),
             new bytes(0)
         );
@@ -160,25 +150,20 @@ contract LiquidationShieldHookTest is Test, Deployers {
         IERC20(mockDebtToken).approve(address(hook), 500e18);
 
         vm.expectEmit(true, true, false, true);
-        emit LiquidationShieldHook.ShieldActivated(
-            user1, SEPOLIA_CHAIN_ID, mockLendingPool, 1.2e18, 500e18
-        );
+        emit LiquidationShieldHook.ShieldActivated(user1, SEPOLIA_CHAIN_ID, mockLendingPool, 1.2e18, 500e18);
 
-        hook.activateShield(
-            SEPOLIA_CHAIN_ID, mockLendingPool, mockDebtToken,
-            mockCollateralToken, 1.2e18, 500e18
-        );
+        hook.activateShield(SEPOLIA_CHAIN_ID, mockLendingPool, mockDebtToken, mockCollateralToken, 1.2e18, 500e18);
         vm.stopPrank();
 
         assertTrue(hook.isProtected(user1));
         assertEq(hook.getRegisteredUserCount(), 1);
 
         LiquidationShieldHook.ShieldPosition memory pos = hook.getPosition(user1);
-        assertEq(pos.user,            user1);
-        assertEq(pos.originChainId,   SEPOLIA_CHAIN_ID);
-        assertEq(pos.lendingPool,     mockLendingPool);
+        assertEq(pos.user, user1);
+        assertEq(pos.originChainId, SEPOLIA_CHAIN_ID);
+        assertEq(pos.lendingPool, mockLendingPool);
         assertEq(pos.healthThreshold, 1.2e18);
-        assertEq(pos.depositBalance,  500e18);
+        assertEq(pos.depositBalance, 500e18);
         assertTrue(pos.isActive);
     }
 
@@ -187,14 +172,9 @@ contract LiquidationShieldHookTest is Test, Deployers {
         IERC20(mockDebtToken).approve(address(hook), 500e18);
 
         vm.expectEmit(true, true, true, true);
-        emit LiquidationShieldHook.HealthCheckRequested(
-            user1, SEPOLIA_CHAIN_ID, mockLendingPool, 1.2e18
-        );
+        emit LiquidationShieldHook.HealthCheckRequested(user1, SEPOLIA_CHAIN_ID, mockLendingPool, 1.2e18);
 
-        hook.activateShield(
-            SEPOLIA_CHAIN_ID, mockLendingPool, mockDebtToken,
-            mockCollateralToken, 1.2e18, 500e18
-        );
+        hook.activateShield(SEPOLIA_CHAIN_ID, mockLendingPool, mockDebtToken, mockCollateralToken, 1.2e18, 500e18);
         vm.stopPrank();
     }
 
@@ -204,10 +184,7 @@ contract LiquidationShieldHookTest is Test, Deployers {
         vm.startPrank(user1);
         IERC20(mockDebtToken).approve(address(hook), 500e18);
         vm.expectRevert(LiquidationShieldHook.AlreadyRegistered.selector);
-        hook.activateShield(
-            SEPOLIA_CHAIN_ID, mockLendingPool, mockDebtToken,
-            mockCollateralToken, 1.2e18, 500e18
-        );
+        hook.activateShield(SEPOLIA_CHAIN_ID, mockLendingPool, mockDebtToken, mockCollateralToken, 1.2e18, 500e18);
         vm.stopPrank();
     }
 
@@ -215,10 +192,7 @@ contract LiquidationShieldHookTest is Test, Deployers {
         vm.startPrank(user1);
         IERC20(mockDebtToken).approve(address(hook), 500e18);
         vm.expectRevert(LiquidationShieldHook.InvalidThreshold.selector);
-        hook.activateShield(
-            SEPOLIA_CHAIN_ID, mockLendingPool, mockDebtToken,
-            mockCollateralToken, 0.5e18, 500e18
-        );
+        hook.activateShield(SEPOLIA_CHAIN_ID, mockLendingPool, mockDebtToken, mockCollateralToken, 0.5e18, 500e18);
         vm.stopPrank();
     }
 
@@ -226,10 +200,7 @@ contract LiquidationShieldHookTest is Test, Deployers {
         vm.startPrank(user1);
         IERC20(mockDebtToken).approve(address(hook), 500e18);
         vm.expectRevert(LiquidationShieldHook.InvalidThreshold.selector);
-        hook.activateShield(
-            SEPOLIA_CHAIN_ID, mockLendingPool, mockDebtToken,
-            mockCollateralToken, 3e18, 500e18
-        );
+        hook.activateShield(SEPOLIA_CHAIN_ID, mockLendingPool, mockDebtToken, mockCollateralToken, 3e18, 500e18);
         vm.stopPrank();
     }
 
@@ -237,10 +208,7 @@ contract LiquidationShieldHookTest is Test, Deployers {
         vm.startPrank(user1);
         IERC20(mockDebtToken).approve(address(hook), 10e18);
         vm.expectRevert(LiquidationShieldHook.InsufficientDeposit.selector);
-        hook.activateShield(
-            SEPOLIA_CHAIN_ID, mockLendingPool, mockDebtToken,
-            mockCollateralToken, 1.2e18, 10e18
-        );
+        hook.activateShield(SEPOLIA_CHAIN_ID, mockLendingPool, mockDebtToken, mockCollateralToken, 1.2e18, 10e18);
         vm.stopPrank();
     }
 
@@ -322,9 +290,7 @@ contract LiquidationShieldHookTest is Test, Deployers {
 
         vm.prank(user1);
         vm.expectEmit(true, true, true, true);
-        emit LiquidationShieldHook.HealthCheckRequested(
-            user1, SEPOLIA_CHAIN_ID, mockLendingPool, 1.5e18
-        );
+        emit LiquidationShieldHook.HealthCheckRequested(user1, SEPOLIA_CHAIN_ID, mockLendingPool, 1.5e18);
         hook.updateThreshold(1.5e18);
     }
 
@@ -649,10 +615,7 @@ contract LiquidationShieldHookTest is Test, Deployers {
         callbackReceiver.addAuthorizedCaller(deployer);
 
         bytes memory payload = abi.encodeWithSelector(
-            bytes4(keccak256("executeProtection(address,uint256,uint256)")),
-            user1,
-            uint256(1.1e18),
-            uint256(50e18)
+            bytes4(keccak256("executeProtection(address,uint256,uint256)")), user1, uint256(1.1e18), uint256(50e18)
         );
 
         vm.prank(deployer);
@@ -683,8 +646,7 @@ contract LiquidationShieldHookTest is Test, Deployers {
         CallbackReceiver fresh = new CallbackReceiver(address(0));
 
         bytes memory payload = abi.encodeWithSelector(
-            bytes4(keccak256("executeProtection(address,uint256,uint256)")),
-            user1, uint256(1.1e18), uint256(50e18)
+            bytes4(keccak256("executeProtection(address,uint256,uint256)")), user1, uint256(1.1e18), uint256(50e18)
         );
 
         vm.prank(deployer);
@@ -734,17 +696,18 @@ contract LiquidationShieldHookTest is Test, Deployers {
     // ══════════════════════════════════════════════════════════════════════════
 
     MockSubscriptionService subService;
-    HealthFactorMonitor     monitor;
+    HealthFactorMonitor monitor;
 
-    uint256 constant BORROW_SIG_U      = uint256(keccak256("Borrow(address,address,address,uint256,uint8,uint256,uint16)"));
-    uint256 constant REPAY_SIG_U       = uint256(keccak256("Repay(address,address,address,uint256,bool)"));
-    uint256 constant LIQUIDATION_SIG_U = uint256(keccak256("LiquidationCall(address,address,address,uint256,uint256,address,bool)"));
+    uint256 constant BORROW_SIG_U = uint256(keccak256("Borrow(address,address,address,uint256,uint8,uint256,uint16)"));
+    uint256 constant REPAY_SIG_U = uint256(keccak256("Repay(address,address,address,uint256,bool)"));
+    uint256 constant LIQUIDATION_SIG_U =
+        uint256(keccak256("LiquidationCall(address,address,address,uint256,uint256,address,bool)"));
     uint256 constant HEALTH_CHECK_SIG_U = uint256(keccak256("HealthCheckRequested(address,uint256,address,uint256)"));
 
     function _deployMonitor() internal returns (HealthFactorMonitor m) {
         subService = new MockSubscriptionService();
         m = new HealthFactorMonitor(
-            1,                         // hookChainId
+            1, // hookChainId
             address(callbackReceiver),
             address(hook),
             SEPOLIA_CHAIN_ID
@@ -755,34 +718,32 @@ contract LiquidationShieldHookTest is Test, Deployers {
         vm.etch(address(0x0000000000000000000000000000000000fffFfF), address(subService).code);
     }
 
-    function _buildLog(
-        uint256 topic0,
-        uint256 topic1,
-        uint256 topic2,
-        uint256 topic3,
-        bytes memory data
-    ) internal pure returns (IReactive.LogRecord memory) {
+    function _buildLog(uint256 topic0, uint256 topic1, uint256 topic2, uint256 topic3, bytes memory data)
+        internal
+        pure
+        returns (IReactive.LogRecord memory)
+    {
         return IReactive.LogRecord({
-            chain_id:     SEPOLIA_CHAIN_ID,
-            _contract:    address(0),
-            topic_0:      topic0,
-            topic_1:      topic1,
-            topic_2:      topic2,
-            topic_3:      topic3,
-            data:         data,
+            chain_id: SEPOLIA_CHAIN_ID,
+            _contract: address(0),
+            topic_0: topic0,
+            topic_1: topic1,
+            topic_2: topic2,
+            topic_3: topic3,
+            data: data,
             block_number: 1,
-            op_code:      0,
-            block_hash:   0,
-            tx_hash:      0,
-            log_index:    0
+            op_code: 0,
+            block_hash: 0,
+            tx_hash: 0,
+            log_index: 0
         });
     }
 
     function test_Monitor_Deploy() public {
         monitor = _deployMonitor();
-        assertEq(monitor.hookChainId(),      1);
+        assertEq(monitor.hookChainId(), 1);
         assertEq(monitor.callbackReceiver(), address(callbackReceiver));
-        assertEq(monitor.hookAddress(),      address(hook));
+        assertEq(monitor.hookAddress(), address(hook));
     }
 
     /// @notice react() with HEALTH_CHECK_SIG registers a position and subscribes
@@ -815,24 +776,20 @@ contract LiquidationShieldHookTest is Test, Deployers {
         address monUser = makeAddr("monUser");
 
         // Register user
-        monitor.react(_buildLog(
-            HEALTH_CHECK_SIG_U,
-            uint256(uint160(monUser)),
-            uint256(SEPOLIA_CHAIN_ID),
-            uint256(uint160(mockLendingPool)),
-            abi.encode(uint256(1.2e18))
-        ));
+        monitor.react(
+            _buildLog(
+                HEALTH_CHECK_SIG_U,
+                uint256(uint160(monUser)),
+                uint256(SEPOLIA_CHAIN_ID),
+                uint256(uint160(mockLendingPool)),
+                abi.encode(uint256(1.2e18))
+            )
+        );
 
         // Borrow event with data ≥ 32 bytes → _estimateHealthFactor returns 1.1e18 < 1.2
         vm.expectEmit(true, false, false, false);
         emit HealthFactorMonitor.ProtectionCallbackSent(monUser, 0, 0);
-        monitor.react(_buildLog(
-            BORROW_SIG_U,
-            0,
-            uint256(uint160(monUser)),
-            0,
-            abi.encode(uint256(1000e18))
-        ));
+        monitor.react(_buildLog(BORROW_SIG_U, 0, uint256(uint160(monUser)), 0, abi.encode(uint256(1000e18))));
     }
 
     /// @notice react() with REPAY_SIG for monitored user → _estimateHealthFactor returns 1.5e18 (no callback)
@@ -840,22 +797,18 @@ contract LiquidationShieldHookTest is Test, Deployers {
         monitor = _deployMonitor();
         address monUser = makeAddr("monUser2");
 
-        monitor.react(_buildLog(
-            HEALTH_CHECK_SIG_U,
-            uint256(uint160(monUser)),
-            uint256(SEPOLIA_CHAIN_ID),
-            uint256(uint160(mockLendingPool)),
-            abi.encode(uint256(1.2e18))
-        ));
+        monitor.react(
+            _buildLog(
+                HEALTH_CHECK_SIG_U,
+                uint256(uint160(monUser)),
+                uint256(SEPOLIA_CHAIN_ID),
+                uint256(uint160(mockLendingPool)),
+                abi.encode(uint256(1.2e18))
+            )
+        );
 
         // Repay with data: topic_0 != BORROW_SIG → returns safe 1.5e18 → no callback
-        monitor.react(_buildLog(
-            REPAY_SIG_U,
-            0,
-            uint256(uint160(monUser)),
-            0,
-            abi.encode(uint256(500e18))
-        ));
+        monitor.react(_buildLog(REPAY_SIG_U, 0, uint256(uint160(monUser)), 0, abi.encode(uint256(500e18))));
     }
 
     /// @notice react() with BORROW_SIG but empty data → _estimateHealthFactor returns 1.5e18 (no callback)
@@ -863,22 +816,18 @@ contract LiquidationShieldHookTest is Test, Deployers {
         monitor = _deployMonitor();
         address monUser = makeAddr("monUser3");
 
-        monitor.react(_buildLog(
-            HEALTH_CHECK_SIG_U,
-            uint256(uint160(monUser)),
-            uint256(SEPOLIA_CHAIN_ID),
-            uint256(uint160(mockLendingPool)),
-            abi.encode(uint256(1.2e18))
-        ));
+        monitor.react(
+            _buildLog(
+                HEALTH_CHECK_SIG_U,
+                uint256(uint160(monUser)),
+                uint256(SEPOLIA_CHAIN_ID),
+                uint256(uint160(mockLendingPool)),
+                abi.encode(uint256(1.2e18))
+            )
+        );
 
         // Borrow event but data.length < 32 → safe default 1.5e18
-        monitor.react(_buildLog(
-            BORROW_SIG_U,
-            0,
-            uint256(uint160(monUser)),
-            0,
-            new bytes(0)
-        ));
+        monitor.react(_buildLog(BORROW_SIG_U, 0, uint256(uint160(monUser)), 0, new bytes(0)));
     }
 
     /// @notice react() with LIQUIDATION_SIG for monitored user
@@ -886,32 +835,32 @@ contract LiquidationShieldHookTest is Test, Deployers {
         monitor = _deployMonitor();
         address monUser = makeAddr("monUser4");
 
-        monitor.react(_buildLog(
-            HEALTH_CHECK_SIG_U,
-            uint256(uint160(monUser)),
-            uint256(SEPOLIA_CHAIN_ID),
-            uint256(uint160(mockLendingPool)),
-            abi.encode(uint256(1.2e18))
-        ));
+        monitor.react(
+            _buildLog(
+                HEALTH_CHECK_SIG_U,
+                uint256(uint160(monUser)),
+                uint256(SEPOLIA_CHAIN_ID),
+                uint256(uint160(mockLendingPool)),
+                abi.encode(uint256(1.2e18))
+            )
+        );
 
-        monitor.react(_buildLog(
-            LIQUIDATION_SIG_U,
-            0,
-            uint256(uint160(monUser)),
-            0,
-            new bytes(0) // no data → 1.5e18 safe (above 1.2)
-        ));
+        monitor.react(
+            _buildLog(
+                LIQUIDATION_SIG_U,
+                0,
+                uint256(uint160(monUser)),
+                0,
+                new bytes(0) // no data → 1.5e18 safe (above 1.2)
+            )
+        );
     }
 
     /// @notice react() with unrecognized topic_0 → no-op
     function test_Monitor_React_UnknownEventSig() public {
         monitor = _deployMonitor();
 
-        monitor.react(_buildLog(
-            uint256(keccak256("Unknown()")),
-            0, 0, 0,
-            new bytes(0)
-        ));
+        monitor.react(_buildLog(uint256(keccak256("Unknown()")), 0, 0, 0, new bytes(0)));
     }
 
     /// @notice react() lending event for user NOT in monitoredPositions → early return
@@ -920,13 +869,7 @@ contract LiquidationShieldHookTest is Test, Deployers {
 
         address unknown = makeAddr("unknown");
 
-        monitor.react(_buildLog(
-            BORROW_SIG_U,
-            0,
-            uint256(uint160(unknown)),
-            0,
-            abi.encode(uint256(1000e18))
-        ));
+        monitor.react(_buildLog(BORROW_SIG_U, 0, uint256(uint160(unknown)), 0, abi.encode(uint256(1000e18))));
         // Should not emit ProtectionCallbackSent
     }
 
@@ -973,10 +916,7 @@ contract LiquidationShieldHookTest is Test, Deployers {
     function _activateShieldForUser(address user) internal {
         vm.startPrank(user);
         IERC20(mockDebtToken).approve(address(hook), 500e18);
-        hook.activateShield(
-            SEPOLIA_CHAIN_ID, mockLendingPool, mockDebtToken,
-            mockCollateralToken, 1.2e18, 500e18
-        );
+        hook.activateShield(SEPOLIA_CHAIN_ID, mockLendingPool, mockDebtToken, mockCollateralToken, 1.2e18, 500e18);
         vm.stopPrank();
     }
 
@@ -988,7 +928,7 @@ contract LiquidationShieldHookTest is Test, Deployers {
         monitor = _deployMonitor();
         deal(user1, 1 ether);
         vm.prank(user1);
-        (bool success, ) = address(monitor).call{value: 1 ether}("");
+        (bool success,) = address(monitor).call{value: 1 ether}("");
         assertTrue(success);
         assertEq(address(monitor).balance, 1 ether);
     }
@@ -998,14 +938,10 @@ contract LiquidationShieldHookTest is Test, Deployers {
         // Etch code to SYSTEM_CONTRACT to mock RN environment
         address sysContract = 0x0000000000000000000000000000000000fffFfF;
         vm.etch(sysContract, bytes("mock code"));
-        
+
         // This deployment will now execute the `if (!vm)` branch and subscribe
-        HealthFactorMonitor rnMonitor = new HealthFactorMonitor(
-            1,
-            address(callbackReceiver),
-            address(hook),
-            SEPOLIA_CHAIN_ID
-        );
+        HealthFactorMonitor rnMonitor =
+            new HealthFactorMonitor(1, address(callbackReceiver), address(hook), SEPOLIA_CHAIN_ID);
 
         assertEq(rnMonitor.hookChainId(), 1);
 
@@ -1017,9 +953,8 @@ contract LiquidationShieldHookTest is Test, Deployers {
         _deployMonitor();
         // Clear etch so 0xfffFfF has no code → detectVm sets vm=true → rnOnly reverts
         vm.etch(address(0x0000000000000000000000000000000000fffFfF), bytes(""));
-        HealthFactorMonitorHarness harness = new HealthFactorMonitorHarness(
-            1, address(callbackReceiver), address(hook), SEPOLIA_CHAIN_ID
-        );
+        HealthFactorMonitorHarness harness =
+            new HealthFactorMonitorHarness(1, address(callbackReceiver), address(hook), SEPOLIA_CHAIN_ID);
         vm.expectRevert("Reactive Network only");
         harness.testRnOnly();
     }
@@ -1028,11 +963,10 @@ contract LiquidationShieldHookTest is Test, Deployers {
         _deployMonitor(); // Initialize subService
         address sysContract = 0x0000000000000000000000000000000000fffFfF;
         vm.etch(sysContract, bytes("mock code"));
-        
-        HealthFactorMonitorHarness harness = new HealthFactorMonitorHarness(
-            1, address(callbackReceiver), address(hook), SEPOLIA_CHAIN_ID
-        );
-        
+
+        HealthFactorMonitorHarness harness =
+            new HealthFactorMonitorHarness(1, address(callbackReceiver), address(hook), SEPOLIA_CHAIN_ID);
+
         harness.testRnOnly(); // should not revert
 
         vm.etch(sysContract, bytes(""));
@@ -1040,9 +974,8 @@ contract LiquidationShieldHookTest is Test, Deployers {
 
     function test_Monitor_Harness_CalculateRepay_GtTarget() public {
         _deployMonitor();
-        HealthFactorMonitorHarness harness = new HealthFactorMonitorHarness(
-            1, address(callbackReceiver), address(hook), SEPOLIA_CHAIN_ID
-        );
+        HealthFactorMonitorHarness harness =
+            new HealthFactorMonitorHarness(1, address(callbackReceiver), address(hook), SEPOLIA_CHAIN_ID);
         assertEq(harness.testCalculateRepay(1.5e18, 1.2e18), 0);
     }
 }

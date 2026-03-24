@@ -23,7 +23,7 @@ interface IReactive {
         uint256 topic_1;
         uint256 topic_2;
         uint256 topic_3;
-        bytes   data;
+        bytes data;
         uint256 block_number;
         uint256 op_code;
         uint256 block_hash;
@@ -32,12 +32,7 @@ interface IReactive {
     }
 
     /// @notice Emitted to request a callback on a destination chain
-    event Callback(
-        uint256 indexed chain_id,
-        address indexed _contract,
-        uint64  indexed gas_limit,
-        bytes   payload
-    );
+    event Callback(uint256 indexed chain_id, address indexed _contract, uint64 indexed gas_limit, bytes payload);
 
     /// @notice Called by the Reactive Network when a subscribed event is detected
     function react(LogRecord calldata log) external;

@@ -23,9 +23,9 @@ contract DeployLasna is Script {
 
         HealthFactorMonitor monitor = new HealthFactorMonitor{value: 0.01 ether}(
             UNICHAIN_SEPOLIA_CHAIN_ID, // Callback destination: Unichain Sepolia
-            callbackReceiver,          // CallbackReceiver on Unichain Sepolia
-            hookAddress,               // Hook Address on Unichain Sepolia
-            0                          // Monitor all chains for the hook for now
+            callbackReceiver, // CallbackReceiver on Unichain Sepolia
+            hookAddress, // Hook Address on Unichain Sepolia
+            0 // Monitor all chains for the hook for now
         );
 
         console.log("HealthFactorMonitor deployed to Lasna at:", address(monitor));

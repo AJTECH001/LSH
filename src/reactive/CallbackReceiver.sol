@@ -11,14 +11,11 @@ pragma solidity ^0.8.26;
  *      Flow:
  *        Reactive Network → CallbackReceiver.receiveCallback() → Hook.executeProtection()
  *
- * 
+ *
  */
+
 interface ILiquidationShieldHook {
-    function executeProtection(
-        address user,
-        uint256 currentHealthFactor,
-        uint256 repayAmount
-    ) external;
+    function executeProtection(address user, uint256 currentHealthFactor, uint256 repayAmount) external;
 }
 
 contract CallbackReceiver {
@@ -68,7 +65,7 @@ contract CallbackReceiver {
         emit CallbackReceived(user, healthFactor, repayAmount);
 
         // Forward the call to the hook
-        (bool success, ) = hook.call(payload);
+        (bool success,) = hook.call(payload);
 
         emit CallbackForwarded(user, success);
     }
@@ -77,19 +74,11 @@ contract CallbackReceiver {
      * @notice Direct call to forward protection execution.
      *         Alternative to receiveCallback for simpler integration.
      */
-    function triggerProtection(
-        address user,
-        uint256 currentHealthFactor,
-        uint256 repayAmount
-    ) external {
+    function triggerProtection(address user, uint256 currentHealthFactor, uint256 repayAmount) external {
         if (!authorizedCallers[msg.sender]) revert NotAuthorized();
         if (hook == address(0)) revert HookNotSet();
 
-        ILiquidationShieldHook(hook).executeProtection(
-            user,
-            currentHealthFactor,
-            repayAmount
-        );
+        ILiquidationShieldHook(hook).executeProtection(user, currentHealthFactor, repayAmount);
 
         emit CallbackForwarded(user, true);
     }

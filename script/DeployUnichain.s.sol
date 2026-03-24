@@ -12,10 +12,10 @@ import {CallbackReceiver} from "../src/reactive/CallbackReceiver.sol";
 contract DeployUnichain is Script {
     // Unichain Sepolia Uniswap v4 PoolManager
     address constant POOL_MANAGER = 0x00B036B58a818B1BC34d502D3fE730Db729e62AC;
-    uint256 constant MIN_DEPOSIT  = 0.001 ether;
+    uint256 constant MIN_DEPOSIT = 0.001 ether;
 
     function run() external {
-        uint256 deployerPrivateKey    = vm.envUint("PRIVATE_KEY");
+        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address reactiveCallbackProxy = vm.envAddress("UNICHAIN_CALLBACK_PROXY");
 
         vm.startBroadcast(deployerPrivateKey);
@@ -25,28 +25,15 @@ contract DeployUnichain is Script {
         console.log("CallbackReceiver deployed at:", address(callbackReceiver));
 
         // 2. Mine salt and deploy Hook via CREATE2
-        uint160 flags = uint160(
-            Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
-        );
+        uint160 flags = uint160(Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG);
 
-        bytes memory constructorArgs = abi.encode(
-            IPoolManager(POOL_MANAGER),
-            address(callbackReceiver),
-            MIN_DEPOSIT
-        );
+        bytes memory constructorArgs = abi.encode(IPoolManager(POOL_MANAGER), address(callbackReceiver), MIN_DEPOSIT);
 
-        (address hookAddress, bytes32 salt) = HookMiner.find(
-            CREATE2_FACTORY,
-            flags,
-            type(LiquidationShieldHook).creationCode,
-            constructorArgs
-        );
+        (address hookAddress, bytes32 salt) =
+            HookMiner.find(CREATE2_FACTORY, flags, type(LiquidationShieldHook).creationCode, constructorArgs);
 
-        LiquidationShieldHook hook = new LiquidationShieldHook{salt: salt}(
-            IPoolManager(POOL_MANAGER),
-            address(callbackReceiver),
-            MIN_DEPOSIT
-        );
+        LiquidationShieldHook hook =
+            new LiquidationShieldHook{salt: salt}(IPoolManager(POOL_MANAGER), address(callbackReceiver), MIN_DEPOSIT);
 
         require(address(hook) == hookAddress, "Hook address mismatch");
         console.log("LiquidationShieldHook deployed at:", address(hook));

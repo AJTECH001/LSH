@@ -67,35 +67,28 @@ contract LiquidationShieldHook is BaseHook {
     );
 
     /// @notice Emitted when a shield-triggered swap completes through the pool
-    event ProtectionSwapLogged(
-        address indexed user,
-        uint256 indexed originChainId,
-        uint256 swapAmount
-    );
+    event ProtectionSwapLogged(address indexed user, uint256 indexed originChainId, uint256 swapAmount);
 
     /// @notice Emitted when a user withdraws from the shield
     event ShieldDeactivated(address indexed user, uint256 refundAmount);
 
     /// @notice Emitted for Reactive Network to subscribe to
     event HealthCheckRequested(
-        address indexed user,
-        uint256 indexed chainId,
-        address indexed lendingPool,
-        uint256 threshold
+        address indexed user, uint256 indexed chainId, address indexed lendingPool, uint256 threshold
     );
 
     // ── Structs ───────────────────────────────────────────────────────────────
     struct ShieldPosition {
-        address user;               // Position owner
-        uint256 originChainId;      // Chain where lending position lives
-        address lendingPool;        // Aave/Compound pool address on origin chain
-        address debtToken;          // Token the user borrowed
-        address collateralToken;    // Token used as collateral
-        uint256 healthThreshold;    // Trigger protection when HF drops below this (1e18 scale)
-        uint256 depositBalance;     // User's deposited protection funds (in debt token)
-        uint256 protectionFee;      // Fee in basis points (e.g., 50 = 0.5%)
-        uint256 lastTriggered;      // Timestamp of last protection event
-        bool    isActive;           // Whether shield is active
+        address user; // Position owner
+        uint256 originChainId; // Chain where lending position lives
+        address lendingPool; // Aave/Compound pool address on origin chain
+        address debtToken; // Token the user borrowed
+        address collateralToken; // Token used as collateral
+        uint256 healthThreshold; // Trigger protection when HF drops below this (1e18 scale)
+        uint256 depositBalance; // User's deposited protection funds (in debt token)
+        uint256 protectionFee; // Fee in basis points (e.g., 50 = 0.5%)
+        uint256 lastTriggered; // Timestamp of last protection event
+        bool isActive; // Whether shield is active
     }
 
     // ── State ─────────────────────────────────────────────────────────────────
@@ -130,32 +123,23 @@ contract LiquidationShieldHook is BaseHook {
     uint256 public totalProtections;
 
     // ── Constructor ───────────────────────────────────────────────────────────
-    constructor(
-        IPoolManager _poolManager,
-        address _callbackReceiver,
-        uint256 _minDeposit
-    ) BaseHook(_poolManager) {
+    constructor(IPoolManager _poolManager, address _callbackReceiver, uint256 _minDeposit) BaseHook(_poolManager) {
         owner = msg.sender;
         callbackReceiver = _callbackReceiver;
         minDeposit = _minDeposit;
     }
 
     // ── Hook Permissions ──────────────────────────────────────────────────────
-    function getHookPermissions()
-        public
-        pure
-        override
-        returns (Hooks.Permissions memory)
-    {
+    function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
         return Hooks.Permissions({
             beforeInitialize: false,
-            afterInitialize: true,      // Track initialized pools
+            afterInitialize: true, // Track initialized pools
             beforeAddLiquidity: false,
             afterAddLiquidity: false,
             beforeRemoveLiquidity: false,
             afterRemoveLiquidity: false,
-            beforeSwap: true,            // Fee discount for shield swaps
-            afterSwap: true,             // Execute protection logic
+            beforeSwap: true, // Fee discount for shield swaps
+            afterSwap: true, // Execute protection logic
             beforeDonate: false,
             afterDonate: false,
             beforeSwapReturnDelta: false,
@@ -199,35 +183,24 @@ contract LiquidationShieldHook is BaseHook {
         IERC20(debtToken).transferFrom(msg.sender, address(this), depositAmount);
 
         positions[msg.sender] = ShieldPosition({
-            user:             msg.sender,
-            originChainId:    originChainId,
-            lendingPool:      lendingPool,
-            debtToken:        debtToken,
-            collateralToken:  collateralToken,
-            healthThreshold:  healthThreshold,
-            depositBalance:   depositAmount,
-            protectionFee:    DEFAULT_FEE_BPS,
-            lastTriggered:    0,
-            isActive:         true
+            user: msg.sender,
+            originChainId: originChainId,
+            lendingPool: lendingPool,
+            debtToken: debtToken,
+            collateralToken: collateralToken,
+            healthThreshold: healthThreshold,
+            depositBalance: depositAmount,
+            protectionFee: DEFAULT_FEE_BPS,
+            lastTriggered: 0,
+            isActive: true
         });
 
         registeredUsers.push(msg.sender);
 
-        emit ShieldActivated(
-            msg.sender,
-            originChainId,
-            lendingPool,
-            healthThreshold,
-            depositAmount
-        );
+        emit ShieldActivated(msg.sender, originChainId, lendingPool, healthThreshold, depositAmount);
 
         // Emit event for Reactive Network to subscribe to
-        emit HealthCheckRequested(
-            msg.sender,
-            originChainId,
-            lendingPool,
-            healthThreshold
-        );
+        emit HealthCheckRequested(msg.sender, originChainId, lendingPool, healthThreshold);
     }
 
     /**
@@ -269,12 +242,7 @@ contract LiquidationShieldHook is BaseHook {
 
         pos.healthThreshold = newThreshold;
 
-        emit HealthCheckRequested(
-            msg.sender,
-            pos.originChainId,
-            pos.lendingPool,
-            newThreshold
-        );
+        emit HealthCheckRequested(msg.sender, pos.originChainId, pos.lendingPool, newThreshold);
     }
 
     // ── Protection Execution (called by Reactive callback) ────────────────────
@@ -288,11 +256,7 @@ contract LiquidationShieldHook is BaseHook {
      * @param currentHealthFactor Current health factor from the origin chain
      * @param repayAmount       Suggested repay amount (calculated by Reactive)
      */
-    function executeProtection(
-        address user,
-        uint256 currentHealthFactor,
-        uint256 repayAmount
-    ) external {
+    function executeProtection(address user, uint256 currentHealthFactor, uint256 repayAmount) external {
         if (msg.sender != callbackReceiver) revert NotAuthorized();
 
         ShieldPosition storage pos = positions[user];
@@ -301,9 +265,7 @@ contract LiquidationShieldHook is BaseHook {
         if (pos.lastTriggered != 0 && block.timestamp < pos.lastTriggered + COOLDOWN_PERIOD) revert CooldownActive();
 
         // Cap repay amount to user's deposit balance
-        uint256 actualRepay = repayAmount > pos.depositBalance
-            ? pos.depositBalance
-            : repayAmount;
+        uint256 actualRepay = repayAmount > pos.depositBalance ? pos.depositBalance : repayAmount;
 
         // Calculate fee
         uint256 fee = (actualRepay * pos.protectionFee) / 10000;
@@ -355,12 +317,11 @@ contract LiquidationShieldHook is BaseHook {
         return BaseHook.afterInitialize.selector;
     }
 
-    function _beforeSwap(
-        address,
-        PoolKey calldata key,
-        SwapParams calldata,
-        bytes calldata hookData
-    ) internal override returns (bytes4, BeforeSwapDelta, uint24) {
+    function _beforeSwap(address, PoolKey calldata key, SwapParams calldata, bytes calldata hookData)
+        internal
+        override
+        returns (bytes4, BeforeSwapDelta, uint24)
+    {
         // If this is a shield-triggered swap, apply a 50% fee discount.
         // Fee overrides only take effect on pools initialised with DYNAMIC_FEE_FLAG.
         if (hookData.length > 0) {
@@ -377,13 +338,11 @@ contract LiquidationShieldHook is BaseHook {
         return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
     }
 
-    function _afterSwap(
-        address,
-        PoolKey calldata,
-        SwapParams calldata,
-        BalanceDelta delta,
-        bytes calldata hookData
-    ) internal override returns (bytes4, int128) {
+    function _afterSwap(address, PoolKey calldata, SwapParams calldata, BalanceDelta delta, bytes calldata hookData)
+        internal
+        override
+        returns (bytes4, int128)
+    {
         // Log shield-triggered swaps with a dedicated event (avoids duplicate ShieldTriggered
         // which is already emitted by executeProtection for the repay path).
         if (hookData.length > 0) {
@@ -427,7 +386,7 @@ contract LiquidationShieldHook is BaseHook {
 
     function withdrawFees(address token, address to) external {
         if (msg.sender != owner) revert NotAuthorized();
-        
+
         uint256 amount = feesCollected[token];
         if (amount > 0) {
             feesCollected[token] = 0;
@@ -440,7 +399,7 @@ contract LiquidationShieldHook is BaseHook {
      */
     function withdrawAllFees(address to) external {
         if (msg.sender != owner) revert NotAuthorized();
-        
+
         for (uint256 i = 0; i < collectedTokens.length; i++) {
             address token = collectedTokens[i];
             uint256 amount = feesCollected[token];

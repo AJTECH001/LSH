@@ -34,25 +34,17 @@ contract HealthFactorMonitor is AbstractReactive {
     address constant SYSTEM_CONTRACT = 0x0000000000000000000000000000000000fffFfF;
 
     /// @dev Event signatures for Aave V3 events we monitor
-    uint256 constant BORROW_EVENT_SIG = uint256(keccak256(
-        "Borrow(address,address,address,uint256,uint8,uint256,uint16)"
-    ));
-    uint256 constant REPAY_EVENT_SIG = uint256(keccak256(
-        "Repay(address,address,address,uint256,bool)"
-    ));
-    uint256 constant LIQUIDATION_EVENT_SIG = uint256(keccak256(
-        "LiquidationCall(address,address,address,uint256,uint256,address,bool)"
-    ));
+    uint256 constant BORROW_EVENT_SIG =
+        uint256(keccak256("Borrow(address,address,address,uint256,uint8,uint256,uint16)"));
+    uint256 constant REPAY_EVENT_SIG = uint256(keccak256("Repay(address,address,address,uint256,bool)"));
+    uint256 constant LIQUIDATION_EVENT_SIG =
+        uint256(keccak256("LiquidationCall(address,address,address,uint256,uint256,address,bool)"));
 
     /// @dev Event signature from our hook: HealthCheckRequested(address,uint256,address,uint256)
-    uint256 constant HEALTH_CHECK_SIG = uint256(keccak256(
-        "HealthCheckRequested(address,uint256,address,uint256)"
-    ));
+    uint256 constant HEALTH_CHECK_SIG = uint256(keccak256("HealthCheckRequested(address,uint256,address,uint256)"));
 
     /// @dev Function selector for executeProtection(address,uint256,uint256)
-    bytes4 constant EXECUTE_PROTECTION_SELECTOR = bytes4(
-        keccak256("executeProtection(address,uint256,uint256)")
-    );
+    bytes4 constant EXECUTE_PROTECTION_SELECTOR = bytes4(keccak256("executeProtection(address,uint256,uint256)"));
 
     // ── State ─────────────────────────────────────────────────────────────────
     // Removed duplicate state variables (subscriptionService, vm handled by AbstractReactive)
@@ -74,7 +66,7 @@ contract HealthFactorMonitor is AbstractReactive {
         uint256 originChainId;
         address lendingPool;
         uint256 healthThreshold; // 1e18 scale
-        bool    isActive;
+        bool isActive;
     }
 
     mapping(address => MonitoredPosition) public monitoredPositions;
@@ -103,12 +95,10 @@ contract HealthFactorMonitor is AbstractReactive {
      * @param _hookAddress         Address of the LiquidationShieldHook
      * @param _hookOriginChainId   Chain ID where the hook emits HealthCheckRequested
      */
-    constructor(
-        uint256 _hookChainId,
-        address _callbackReceiver,
-        address _hookAddress,
-        uint256 _hookOriginChainId
-    ) payable AbstractReactive() {
+    constructor(uint256 _hookChainId, address _callbackReceiver, address _hookAddress, uint256 _hookOriginChainId)
+        payable
+        AbstractReactive()
+    {
         hookChainId = _hookChainId;
         callbackReceiver = _callbackReceiver;
         hookAddress = _hookAddress;
@@ -125,10 +115,10 @@ contract HealthFactorMonitor is AbstractReactive {
     function init() external onlyOwner {
         if (!vm) {
             service.subscribe(
-                hookOriginChainId,           // Chain where hook is deployed
-                hookAddress,                 // Hook contract address
-                uint256(HEALTH_CHECK_SIG),   // HealthCheckRequested event
-                REACTIVE_IGNORE,             // wildcard
+                hookOriginChainId, // Chain where hook is deployed
+                hookAddress, // Hook contract address
+                uint256(HEALTH_CHECK_SIG), // HealthCheckRequested event
+                REACTIVE_IGNORE, // wildcard
                 REACTIVE_IGNORE,
                 REACTIVE_IGNORE
             );
@@ -146,7 +136,9 @@ contract HealthFactorMonitor is AbstractReactive {
         uint256 size;
         address systemAddr = SYSTEM_CONTRACT;
         // solhint-disable-next-line no-inline-assembly
-        assembly { size := extcodesize(systemAddr) }
+        assembly {
+            size := extcodesize(systemAddr)
+        }
         vm = size == 0;
     }
 
@@ -165,9 +157,7 @@ contract HealthFactorMonitor is AbstractReactive {
         if (log.topic_0 == HEALTH_CHECK_SIG) {
             _handleHealthCheckRequest(log);
         } else if (
-            log.topic_0 == BORROW_EVENT_SIG ||
-            log.topic_0 == REPAY_EVENT_SIG ||
-            log.topic_0 == LIQUIDATION_EVENT_SIG
+            log.topic_0 == BORROW_EVENT_SIG || log.topic_0 == REPAY_EVENT_SIG || log.topic_0 == LIQUIDATION_EVENT_SIG
         ) {
             _handleLendingEvent(log);
         }
@@ -190,10 +180,10 @@ contract HealthFactorMonitor is AbstractReactive {
 
         // Register position for monitoring
         monitoredPositions[user] = MonitoredPosition({
-            originChainId:   chainId,
-            lendingPool:     lendingPool,
+            originChainId: chainId,
+            lendingPool: lendingPool,
             healthThreshold: threshold,
-            isActive:        true
+            isActive: true
         });
 
         // Subscribe to lending events on the origin chain
@@ -218,10 +208,7 @@ contract HealthFactorMonitor is AbstractReactive {
 
         if (estimatedHealthFactor < pos.healthThreshold) {
             // Calculate repay amount needed to restore health
-            uint256 repayAmount = _calculateRepayAmount(
-                estimatedHealthFactor,
-                pos.healthThreshold
-            );
+            uint256 repayAmount = _calculateRepayAmount(estimatedHealthFactor, pos.healthThreshold);
 
             // Fire callback to the hook chain
             _triggerProtection(user, estimatedHealthFactor, repayAmount);
@@ -250,10 +237,7 @@ contract HealthFactorMonitor is AbstractReactive {
     /**
      * @dev Calculate how much debt to repay to restore health factor.
      */
-    function _calculateRepayAmount(
-        uint256 currentHF,
-        uint256 targetHF
-    ) internal pure returns (uint256) {
+    function _calculateRepayAmount(uint256 currentHF, uint256 targetHF) internal pure returns (uint256) {
         if (currentHF >= targetHF) return 0;
 
         // Simplified: repay proportional to the gap
@@ -269,27 +253,13 @@ contract HealthFactorMonitor is AbstractReactive {
     /**
      * @dev Emit Callback event to trigger protection on the hook chain.
      */
-    function _triggerProtection(
-        address user,
-        uint256 healthFactor,
-        uint256 repayAmount
-    ) internal {
+    function _triggerProtection(address user, uint256 healthFactor, uint256 repayAmount) internal {
         // Encode the callback payload
-        bytes memory payload = abi.encodeWithSelector(
-            EXECUTE_PROTECTION_SELECTOR,
-            user,
-            healthFactor,
-            repayAmount
-        );
+        bytes memory payload = abi.encodeWithSelector(EXECUTE_PROTECTION_SELECTOR, user, healthFactor, repayAmount);
 
         // Emit Callback event — Reactive Network will deliver this
         // to the callbackReceiver on the hook's chain
-        emit Callback(
-            hookChainId,
-            callbackReceiver,
-            CALLBACK_GAS_LIMIT,
-            payload
-        );
+        emit Callback(hookChainId, callbackReceiver, CALLBACK_GAS_LIMIT, payload);
 
         emit ProtectionCallbackSent(user, healthFactor, repayAmount);
     }
@@ -301,33 +271,14 @@ contract HealthFactorMonitor is AbstractReactive {
      */
     function _subscribeToLendingEvents(uint256 chainId, address lendingPool) internal {
         // Subscribe to Borrow events
-        service.subscribe(
-            chainId,
-            lendingPool,
-            BORROW_EVENT_SIG,
-            REACTIVE_IGNORE,
-            REACTIVE_IGNORE,
-            REACTIVE_IGNORE
-        );
+        service.subscribe(chainId, lendingPool, BORROW_EVENT_SIG, REACTIVE_IGNORE, REACTIVE_IGNORE, REACTIVE_IGNORE);
 
         // Subscribe to Repay events
-        service.subscribe(
-            chainId,
-            lendingPool,
-            REPAY_EVENT_SIG,
-            REACTIVE_IGNORE,
-            REACTIVE_IGNORE,
-            REACTIVE_IGNORE
-        );
+        service.subscribe(chainId, lendingPool, REPAY_EVENT_SIG, REACTIVE_IGNORE, REACTIVE_IGNORE, REACTIVE_IGNORE);
 
         // Subscribe to Liquidation events (to detect if protection was too late)
         service.subscribe(
-            chainId,
-            lendingPool,
-            LIQUIDATION_EVENT_SIG,
-            REACTIVE_IGNORE,
-            REACTIVE_IGNORE,
-            REACTIVE_IGNORE
+            chainId, lendingPool, LIQUIDATION_EVENT_SIG, REACTIVE_IGNORE, REACTIVE_IGNORE, REACTIVE_IGNORE
         );
     }
 
@@ -335,19 +286,14 @@ contract HealthFactorMonitor is AbstractReactive {
      * @notice Manually subscribe to events for a specific user's lending pool.
      *         Useful for adding monitoring without waiting for HealthCheckRequested.
      */
-    function addMonitoredPosition(
-        address user,
-        uint256 chainId,
-        address lendingPool,
-        uint256 threshold
-    ) external {
+    function addMonitoredPosition(address user, uint256 chainId, address lendingPool, uint256 threshold) external {
         require(msg.sender == owner, "Not owner");
 
         monitoredPositions[user] = MonitoredPosition({
-            originChainId:   chainId,
-            lendingPool:     lendingPool,
+            originChainId: chainId,
+            lendingPool: lendingPool,
             healthThreshold: threshold,
-            isActive:        true
+            isActive: true
         });
 
         _subscribeToLendingEvents(chainId, lendingPool);

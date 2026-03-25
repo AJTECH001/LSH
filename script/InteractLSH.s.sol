@@ -49,14 +49,15 @@ contract InteractLSH is BaseScript, LiquidityHelpers {
 
         // 2. Activate Shield
         IERC20(token0Addr).approve(hookAddr, 10e18);
-        LiquidationShieldHook(hookAddr).activateShield(
-            11155111, // origin chain
-            address(0x123), // mock lending pool
-            token0Addr,
-            token1Addr,
-            1.2e18, // threshold
-            10e18 // deposit
-        );
+        LiquidationShieldHook(hookAddr)
+            .activateShield(
+                11155111, // origin chain
+                address(0x123), // mock lending pool
+                token0Addr,
+                token1Addr,
+                1.2e18, // threshold
+                10e18 // deposit
+            );
 
         console.log("Shield activated for user:", msg.sender);
 

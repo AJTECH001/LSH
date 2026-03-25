@@ -57,10 +57,11 @@ contract CallbackReceiver {
         if (hook == address(0)) revert HookNotSet();
 
         // Decode the payload to extract parameters for logging
-        (address user, uint256 healthFactor, uint256 repayAmount) = abi.decode(
-            payload[4:], // Skip the 4-byte function selector
-            (address, uint256, uint256)
-        );
+        (address user, uint256 healthFactor, uint256 repayAmount) =
+            abi.decode(
+                payload[4:], // Skip the 4-byte function selector
+                (address, uint256, uint256)
+            );
 
         emit CallbackReceived(user, healthFactor, repayAmount);
 

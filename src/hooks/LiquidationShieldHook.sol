@@ -289,14 +289,18 @@ contract LiquidationShieldHook is BaseHook {
 
         // Attempt direct repay (same-chain scenario)
         // Cross-chain repay is handled by the Reactive callback receiver
-        try ILendingPool(pos.lendingPool).repay(
-            pos.debtToken,
-            netRepay,
-            2, // variable rate
-            user
-        ) returns (uint256) {
-            // Success
-        } catch {
+        try ILendingPool(pos.lendingPool)
+            .repay(
+                pos.debtToken,
+                netRepay,
+                2, // variable rate
+                user
+            ) returns (
+            uint256
+        ) {
+        // Success
+        }
+            catch {
             // Cross-chain case: funds are sent via bridge in callback receiver
             // Revert the approve since we'll handle it differently
         }

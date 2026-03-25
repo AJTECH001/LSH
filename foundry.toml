@@ -16,10 +16,6 @@ optimizer = true
 optimizer_runs = 1000
 via_ir = true
 
-[profile.lint]
-exclude_lints = ["screaming-snake-case-immutable", "screaming-snake-case-const"]
-lint_on_build = false
-
 [fmt]
 line_length = 120
 tab_width = 4

@@ -180,10 +180,7 @@ contract HealthFactorMonitor is AbstractReactive {
 
         // Register position for monitoring
         monitoredPositions[user] = MonitoredPosition({
-            originChainId: chainId,
-            lendingPool: lendingPool,
-            healthThreshold: threshold,
-            isActive: true
+            originChainId: chainId, lendingPool: lendingPool, healthThreshold: threshold, isActive: true
         });
 
         // Subscribe to lending events on the origin chain
@@ -290,10 +287,7 @@ contract HealthFactorMonitor is AbstractReactive {
         require(msg.sender == owner, "Not owner");
 
         monitoredPositions[user] = MonitoredPosition({
-            originChainId: chainId,
-            lendingPool: lendingPool,
-            healthThreshold: threshold,
-            isActive: true
+            originChainId: chainId, lendingPool: lendingPool, healthThreshold: threshold, isActive: true
         });
 
         _subscribeToLendingEvents(chainId, lendingPool);
